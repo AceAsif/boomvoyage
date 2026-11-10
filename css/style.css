@@ -451,6 +451,10 @@ body.ambient #stage { cursor: none; }
 }
 @media (max-height: 460px) {
   .brand-tag { display: none; }
+  /* A low screen: the caption becomes one line that sits on the water, just above the controls, clear of the landmarks. */
+  .float { padding-bottom: calc(var(--pad) + var(--footer, 80px) + 6px + env(safe-area-inset-bottom)); }
+  .act-caption { flex-direction: row; align-items: baseline; gap: 10px; }
+  .act-caption span { font-size: 16px; }
   .show-title { margin-top: 0; font-size: 20px; }
   .time { font-size: 34px; }
   .start-inner { gap: 10px; }

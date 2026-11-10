@@ -110,14 +110,18 @@ export class Engine {
       ? scene.horizon
       : (portrait ? scene.horizon?.portrait : scene.horizon?.landscape) ?? 0.74;
     const hz = Math.round(h * hf);
-    const S = Math.max(w / 1000, h / 1400); // pixels per scene unit
+    // Pixels per scene unit. In portrait a scene may say how many units must
+    // fit across the screen, so its landmarks are never cut off.
+    const span = portrait ? scene.portraitSpan : 0;
+    const S = span ? w / span : Math.max(w / 1000, h / 1400);
     const fx = typeof scene.focusX === 'number'
       ? scene.focusX
       : (portrait ? scene.focusX?.portrait : scene.focusX?.landscape) ?? 0;
 
     this.view = {
       w, h, dpr, hz, S, portrait,
-      U: Math.min(w * 1.6, hz * 1.5),
+      // Reference size for bursts. A tall phone sky gets bigger fireworks.
+      U: portrait ? Math.min(w * 2, hz * 1.5) : Math.min(w * 1.6, hz * 1.5),
       px: (x) => w / 2 + (x - fx) * S, // scene x (-500..500) to pixels
       py: (y) => hz - y * S,      // scene y (up from the waterline) to pixels
     };
@@ -469,7 +473,9 @@ export class Engine {
     switch (cue.kind) {
       case 'shell': {
         const hgt = cue.h ?? 0.6;
-        this.launch(x, v.hz + 4, x + (cue.drift ?? 0) * this.U * 0.06, v.hz - v.hz * (0.36 + 0.46 * hgt),
+        // Portrait: the skyline is low, so bursts use more of the tall sky.
+        const top = v.portrait ? 0.3 + 0.56 * hgt : 0.36 + 0.46 * hgt;
+        this.launch(x, v.hz + 4, x + (cue.drift ?? 0) * this.U * 0.06, v.hz - v.hz * top,
           0.95 + 0.55 * hgt + Math.random() * 0.08, cue, cue.whistle);
         break;
       }

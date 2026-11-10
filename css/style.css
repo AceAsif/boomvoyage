@@ -243,6 +243,117 @@ button:focus-visible {
 .icon[aria-pressed="true"] .i-off { display: block; }
 .icon[aria-pressed="true"] { color: var(--ivory-dim); }
 
+/* ---------- Floating messages (toast, link box) ---------- */
+
+/* Sits just above the controls. --footer is the height of the bottom row,
+   set by main.js; 110px is only the fallback. */
+.float {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding:
+    0
+    calc(var(--pad) + env(safe-area-inset-right))
+    calc(var(--pad) + var(--footer, 110px) + 16px + env(safe-area-inset-bottom))
+    calc(var(--pad) + env(safe-area-inset-left));
+  pointer-events: none;
+}
+.toast {
+  padding: 9px 18px;
+  border: 1px solid rgba(255, 207, 138, 0.45);
+  border-radius: 999px;
+  background: rgba(8, 10, 26, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--ember);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+}
+.toast.is-on { opacity: 1; transform: none; }
+
+.link-box {
+  width: min(100%, 440px);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(8, 10, 26, 0.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  pointer-events: auto;
+  animation: rise 0.22s var(--ease);
+}
+.link-box label {
+  grid-column: 1 / -1;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ivory-dim);
+}
+.link-box input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(4, 5, 15, 0.6);
+  color: var(--ivory);
+  font: inherit;
+  font-size: 13px;
+}
+.link-box input:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.link-box .pill { min-height: 44px; padding: 0 18px; }
+
+/* The act caption: a small number and a name, like a programme card. */
+.act-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.75);
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease);
+}
+.act-caption.is-on { opacity: 0.92; transform: none; }
+.act-caption small {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+.act-caption span {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: clamp(17px, 2.2vw, 24px);
+  line-height: 1.1;
+  color: var(--ivory);
+}
+
+/* ---------- Ambient (TV) mode ---------- */
+
+/* Everything except the picture goes away. Only the short hint toast stays. */
+body.ambient .ui,
+body.ambient .float > :not(.toast) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.9s var(--ease), visibility 0s linear 0.9s;
+}
+body.ambient #stage { cursor: none; }
+
 /* ---------- Start overlay ---------- */
 
 .start {
@@ -314,19 +425,36 @@ button:focus-visible {
 
 @media (max-width: 560px) {
   .brand-tag { display: none; }
-  .bottom { flex-wrap: wrap; align-items: flex-end; }
-  .controls { flex: 1 1 auto; justify-content: flex-end; }
+  /* The bottom is a small grid: the clock and the two extra buttons on the
+     first row, then Launch now, mute and fullscreen on the second row, so
+     everything stays under the thumb. */
+  .bottom {
+    display: grid;
+    grid-template-columns: 1fr 46px 46px;
+    column-gap: 10px;
+    row-gap: 12px;
+    align-items: end;
+  }
+  .controls { display: contents; }
+  .clock { grid-column: 1; grid-row: 1; min-width: 0; }
+  #shareBtn { grid-column: 2; grid-row: 1; }
+  #ambientBtn { grid-column: 3; grid-row: 1; }
+  #launchBtn { grid-column: 1; grid-row: 2; justify-self: end; }
+  #muteBtn { grid-column: 2; grid-row: 2; }
+  #fsBtn { grid-column: 3; grid-row: 2; }
   .pill { padding: 0 16px; letter-spacing: 0.14em; }
   .scene-btn { padding: 0 13px; font-size: 12px; }
   .scene-menu { min-width: 216px; }
 }
 @media (max-width: 380px) {
-  .clock { min-width: 100%; }
-  .controls { justify-content: space-between; }
-  .pill { flex: 1; }
+  #launchBtn { justify-self: stretch; }
 }
 @media (max-height: 460px) {
   .brand-tag { display: none; }
+  /* A low screen: the caption becomes one line that sits on the water, just above the controls, clear of the landmarks. */
+  .float { padding-bottom: calc(var(--pad) + var(--footer, 80px) + 6px + env(safe-area-inset-bottom)); }
+  .act-caption { flex-direction: row; align-items: baseline; gap: 10px; }
+  .act-caption span { font-size: 16px; }
   .show-title { margin-top: 0; font-size: 20px; }
   .time { font-size: 34px; }
   .start-inner { gap: 10px; }

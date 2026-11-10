@@ -5,6 +5,8 @@
 // bridge waterfall...). Positions are 0..1 so a show fits any screen.
 // The same seed always gives the same show; a new seed gives a new one.
 
+import { slugify } from './link.js';
+
 export function seededRandom(seed) {
   let a = seed >>> 0;
   return () => {
@@ -141,15 +143,47 @@ function finale(c, t, seconds) {
   return seconds + 3.4;
 }
 
+// ---------- act names ----------
+
+// What the caption says for each act. A scene can change any of them with
+// `show.actLabels` (for example { waterfall: 'Bridge of Light' }).
+export const ACT_LABELS = {
+  opening: 'Opening',
+  chase: 'The Chase',
+  mirror: 'Mirror',
+  fans: 'Fans',
+  willows: 'Willows',
+  garden: 'Garden',
+  crossfire: 'Crossfire',
+  sparkle: 'Sparkle',
+  waterfall: 'Waterfall',
+  finale: 'Finale',
+};
+
+// The act that is playing `elapsed` seconds into the show, or null before the
+// first act and after the last one. Acts follow each other without gaps.
+export function actAt(show, elapsed) {
+  const timeline = show.timeline;
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    if (elapsed >= timeline[i].start) return elapsed < timeline[i].end ? timeline[i] : null;
+  }
+  return null;
+}
+
 // ---------- builder ----------
 
 // cfg: the `show` object of a scene. opts.calm: gentler show (reduced motion).
 // opts.avoid: a palette name not to use (so two shows in a row look different).
+// opts.theme: a palette id (see slugify) to use instead of the random pick. The
+// random numbers are used in the same way either way, so the same seed and
+// the same theme always give exactly the same show (this is what share links use).
 export function buildShow(cfg, seed, opts = {}) {
   const r = seededRandom(seed);
   let palettes = cfg.palettes;
   if (opts.avoid && palettes.length > 1) palettes = palettes.filter((p) => p.name !== opts.avoid);
-  const theme = pick(r, palettes);
+  const picked = pick(r, palettes);
+  const forced = opts.theme ? cfg.palettes.find((p) => slugify(p.name) === opts.theme) : null;
+  const theme = forced || picked;
   const cues = [];
   const calm = !!opts.calm;
 
@@ -172,15 +206,26 @@ export function buildShow(cfg, seed, opts = {}) {
     add(t, kind, o) { cues.push({ t, kind, ...o }); },
   };
 
+  // Every act is written down with its start and end, for the act captions.
+  // The pause after an act belongs to that act, so acts have no gaps.
+  const timeline = [];
+  const labelOf = (key) => cfg.actLabels?.[key] ?? ACT_LABELS[key] ?? key;
   let t = 0.2;
-  t += opening(c, t);
+  const run = (key, play, pause = 0) => {
+    const length = play() + pause;
+    timeline.push({ key, label: labelOf(key), start: t, end: t + length });
+    t += length;
+  };
+
+  run('opening', () => opening(c, t));
   const names = shuffle(r, Object.keys(MOVEMENTS)).slice(0, cfg.movements ?? 3);
-  for (const name of names) t += MOVEMENTS[name](c, t) + 0.5;
-  if (c.features.waterfall) t += waterfallAct(c, t) + 0.3;
-  t += finale(c, t, cfg.finaleSeconds ?? 8);
+  for (const name of names) run(name, () => MOVEMENTS[name](c, t), 0.5);
+  if (c.features.waterfall) run('waterfall', () => waterfallAct(c, t), 0.3);
+  run('finale', () => finale(c, t, cfg.finaleSeconds ?? 8));
+  timeline.forEach((act, i) => { act.index = i + 1; });
 
   cues.sort((a, b) => a.t - b.t);
-  return { seed, title: theme.name, acts: names, cues, duration: t + 4.5 };
+  return { seed, title: theme.name, themeId: slugify(theme.name), acts: names, timeline, cues, duration: t + 4.5 };
 }
 
 // ---------- runner ----------

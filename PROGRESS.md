@@ -8,12 +8,12 @@ Last updated: 2026-11-10
   Fix: the fireworks layer is now a black, add-only picture. Each frame it is dimmed and then one brightness step is subtracted (60 steps per second), so every pixel reaches true black (`fadeFx()`, `wipeFx()`). The first tile clean-up was removed again. Measured during a show: 0% faint leftover pixels; 3 s after a burst: 0 lit pixels. Frame time unchanged (median 7 ms at 1280x720).
   Burst light: `color-dodge` replaced by add-only light (`lightLand()` plus a thin sky wash). Kept: desktop looks cleaner (no brown haze), sails and windows still catch the light.
 - Step 2: Phone portrait. `js/engine.js`: a scene can set `portraitSpan` (units that must fit across a portrait screen); portrait bursts are bigger (`U = min(w*2, hz*1.5)`) and use 30%..86% of the sky height. `js/scenes/sydney.js`: portrait composition (whole bridge across the width, Opera House in front of its left side, small far city behind). Landscape code path unchanged. Checked at 390x844.
+- Step 3: Opera House redrawn in `js/scenes/sydney.js` (`shell()`, `hall()`, `drawOperaHouse()`): pointed shells leaning to the harbour and rising toward it, two halls (far one larger, near one overlapping), one land-facing shell per hall, small restaurant shells at the land end, ribs, warm glass walls with mullions, three-step podium with stairs and lamps. Drawn from memory of the building, no photo used. Checked enlarged in the browser and at 390x844 and 360x740.
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 3: Redraw the Opera House (two large shell groups side by side, a small group at the harbour end, glass walls, stepped podium).
 - Step 4: Test 390x844, 360x740, phone landscape, tablet, desktop in the built-in browser (look at screenshots).
 - Step 5: Update README and Creative decisions.
 

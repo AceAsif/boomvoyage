@@ -6,6 +6,7 @@ import { Engine } from './engine.js';
 import { scenes, getScene } from './scenes/index.js';
 import { buildShow, createRunner } from './show.js';
 import { Sound } from './audio.js';
+import { parseLink, buildShareLink } from './link.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -25,7 +26,15 @@ function store(key, value) {
   try { localStorage.setItem(key, value); } catch { /* private mode: keep going */ }
 }
 
-let scene = getScene(stored(SCENE_KEY));
+// Link options (see README): a shared link brings its own harbour and show.
+const link = parseLink(location.search);
+const linkScene = link.scene && scenes.some((s) => s.id === link.scene) ? link.scene : null;
+let scene = getScene(linkScene ?? stored(SCENE_KEY));
+// The shared show plays first, but only if its harbour exists here.
+let pendingShared = link.seed !== null && (!link.scene || linkScene)
+  ? { seed: link.seed, theme: link.theme }
+  : null;
+let lastShow = null;     // what "Copy link" shares: { scene, seed, theme }
 let started = false;     // true after "Tap to start"
 let schedule = null;
 let current = null;      // the show that is playing: { runner, startedAt }
@@ -42,9 +51,12 @@ const intervalMs = () => scene.show.intervalSeconds * 1000;
 function startShow(now = Date.now()) {
   if (!started) return;
   showCount += 1;
-  const seed = (now ^ (showCount * 2654435761)) >>> 0;
-  const show = buildShow(scene.show, seed, { calm: reducedMotion, avoid: lastTitle });
+  const shared = pendingShared;
+  pendingShared = null;
+  const seed = shared ? shared.seed : (now ^ (showCount * 2654435761)) >>> 0;
+  const show = buildShow(scene.show, seed, { calm: reducedMotion, avoid: lastTitle, theme: shared?.theme });
   lastTitle = show.title;
+  lastShow = { scene: scene.id, seed: show.seed, theme: show.themeId };
   current = { runner: createRunner(show), startedAt: now };
   schedule = restart(schedule ?? createSchedule(intervalMs(), now), now);
   announce(show.title);
@@ -132,6 +144,8 @@ function setScene(id) {
   store(SCENE_KEY, scene.id);
   current = null;
   lastTitle = null;
+  lastShow = null;
+  pendingShared = null;
   schedule = null;
   engine.setScene(scene);
   sound.setScene(scene.sound);
@@ -172,6 +186,59 @@ function closeMenu() {
   $('sceneBtn').setAttribute('aria-expanded', 'false');
 }
 const menuOpen = () => !$('sceneMenu').hidden;
+
+// ---------- share link ----------
+
+let toastTimer = 0;
+function toast(text) {
+  const el = $('toast');
+  el.textContent = text;
+  el.classList.add('is-on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('is-on'), 2400);
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* no permission: try the old way */ }
+  try {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.setAttribute('readonly', '');
+    box.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.append(box);
+    box.select();
+    box.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    box.remove();
+    return ok;
+  } catch { return false; }
+}
+
+// Last resort: show the link so it can be copied by hand.
+function showLinkBox(url) {
+  $('linkField').value = url;
+  $('linkBox').hidden = false;
+  $('linkField').focus();
+  $('linkField').select();
+}
+function closeLinkBox() {
+  if ($('linkBox').hidden) return false;
+  $('linkBox').hidden = true;
+  $('shareBtn').focus();
+  return true;
+}
+
+async function shareLink() {
+  if (!lastShow) return;
+  const url = buildShareLink(location.href, lastShow);
+  if (await copyText(url)) toast('Link copied');
+  else showLinkBox(url);
+}
 
 // ---------- fullscreen ----------
 
@@ -224,6 +291,13 @@ function begin() {
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
 window.boomvoyage = { engine, sound };
 
+// Keep the floating messages just above the bottom row, whatever its height.
+if (typeof ResizeObserver === 'function') {
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--footer', `${document.querySelector('.bottom').offsetHeight}px`);
+  }).observe(document.querySelector('.bottom'));
+}
+
 buildMenu();
 renderScene();
 renderMute();
@@ -267,6 +341,8 @@ $('launchBtn').addEventListener('click', () => {
   setTimeout(() => { btn.disabled = false; }, 1500);
 });
 $('muteBtn').addEventListener('click', toggleMute);
+$('shareBtn').addEventListener('click', shareLink);
+$('linkDone').addEventListener('click', closeLinkBox);
 $('fsBtn').addEventListener('click', toggleFullscreen);
 $('sceneBtn').addEventListener('click', () => (menuOpen() ? closeMenu() : openMenu()));
 document.addEventListener('fullscreenchange', renderFullscreen);
@@ -279,7 +355,8 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   wake();
-  if (e.key === 'Escape') { closeMenu(); return; }
+  if (e.key === 'Escape') { closeLinkBox(); closeMenu(); return; }
+  if (e.target.closest && e.target.closest('input, textarea')) return; // typing or selecting: keys are not shortcuts
   if (!started) return; // Enter / Space on the start button are handled by the browser
   const onControl = e.target.closest && e.target.closest('button, [role="option"]');
   const key = e.key.toLowerCase();

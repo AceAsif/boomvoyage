@@ -89,3 +89,30 @@ test('runner drops cues missed while the tab was asleep', () => {
   assert.equal(due[0].dur, 3); // the waterfall resumes with the time left
   assert.equal(due[1].t, 7.5);
 });
+
+test('a show knows its theme id', () => {
+  const s = buildShow(cfg, 11);
+  assert.equal(s.themeId, s.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+});
+
+test('the same seed and theme id rebuild exactly the same show (share links)', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    // The sender's show: its theme was chosen with "avoid" in play.
+    const sent = buildShow(cfg, seed, { avoid: cfg.palettes[seed % cfg.palettes.length].name });
+    // The receiver has no "avoid", only the link (seed + theme id).
+    const received = buildShow(cfg, seed, { theme: sent.themeId });
+    assert.deepEqual(received, sent, `seed ${seed}`);
+  }
+});
+
+test('an unknown theme id falls back to the normal pick', () => {
+  assert.deepEqual(buildShow(cfg, 5, { theme: 'no-such-theme' }), buildShow(cfg, 5));
+});
+
+test('a theme id changes only the colours, not the choreography', () => {
+  const a = buildShow(cfg, 21, { theme: 'harbour-blue' });
+  const b = buildShow(cfg, 21, { theme: 'waratah' });
+  assert.equal(a.title, 'Harbour Blue');
+  assert.equal(b.title, 'Waratah');
+  assert.deepEqual(a.cues.map((c) => [c.t, c.kind, c.type, c.x]), b.cues.map((c) => [c.t, c.kind, c.type, c.x]));
+});

@@ -5,6 +5,8 @@
 // bridge waterfall...). Positions are 0..1 so a show fits any screen.
 // The same seed always gives the same show; a new seed gives a new one.
 
+import { slugify } from './link.js';
+
 export function seededRandom(seed) {
   let a = seed >>> 0;
   return () => {
@@ -145,11 +147,16 @@ function finale(c, t, seconds) {
 
 // cfg: the `show` object of a scene. opts.calm: gentler show (reduced motion).
 // opts.avoid: a palette name not to use (so two shows in a row look different).
+// opts.theme: a palette id (see slugify) to use instead of the random pick. The
+// random numbers are used in the same way either way, so the same seed and
+// the same theme always give exactly the same show (this is what share links use).
 export function buildShow(cfg, seed, opts = {}) {
   const r = seededRandom(seed);
   let palettes = cfg.palettes;
   if (opts.avoid && palettes.length > 1) palettes = palettes.filter((p) => p.name !== opts.avoid);
-  const theme = pick(r, palettes);
+  const picked = pick(r, palettes);
+  const forced = opts.theme ? cfg.palettes.find((p) => slugify(p.name) === opts.theme) : null;
+  const theme = forced || picked;
   const cues = [];
   const calm = !!opts.calm;
 
@@ -180,7 +187,7 @@ export function buildShow(cfg, seed, opts = {}) {
   t += finale(c, t, cfg.finaleSeconds ?? 8);
 
   cues.sort((a, b) => a.t - b.t);
-  return { seed, title: theme.name, acts: names, cues, duration: t + 4.5 };
+  return { seed, title: theme.name, themeId: slugify(theme.name), acts: names, cues, duration: t + 4.5 };
 }
 
 // ---------- runner ----------

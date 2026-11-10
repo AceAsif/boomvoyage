@@ -4,12 +4,14 @@ Last updated: 2026-11-10
 
 ## Done
 - Step 1: Project skeleton. `index.html`, `css/style.css` (full UI shell), `js/main.js` (stub), `package.json` (only for `node --test`), `.gitignore`, `README.md`.
+- Step 2: Canvas engine and particles. `js/particles.js` (pooled, capped), `js/fireworks.js` (11 burst types, comet, mine), `js/engine.js` (layers, trails, bloom, rippling water reflections, rockets, waterfall). Tap the sky to fire a shell.
+- Step 3: Sydney scene. `js/scenes/sydney.js` (config: sky, skyline, water, rig, show palettes, sound tweaks), `js/scenes/kit.js` (shared drawing helpers), `js/scenes/index.js` (registry), `tests/scenes.test.js`. Checked in the browser at 1280x720: no console errors.
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 2: Canvas engine and particles. Add `js/particles.js`, `js/fireworks.js`, `js/engine.js`; wire in `js/main.js` so a tap on the sky fires a shell.
+- Step 4: Show choreography. Add `js/show.js` (pure, seeded show builder + cue runner) and `tests/show.test.js`; make "Launch now" play a show.
 
 ## Plan
 1. Project skeleton and README

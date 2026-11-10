@@ -97,11 +97,14 @@ export class Engine {
       : (portrait ? scene.horizon?.portrait : scene.horizon?.landscape) ?? 0.74;
     const hz = Math.round(h * hf);
     const S = Math.max(w / 1000, h / 1400); // pixels per scene unit
+    const fx = typeof scene.focusX === 'number'
+      ? scene.focusX
+      : (portrait ? scene.focusX?.portrait : scene.focusX?.landscape) ?? 0;
 
     this.view = {
       w, h, dpr, hz, S, portrait,
       U: Math.min(w * 1.6, hz * 1.5),
-      px: (x) => w / 2 + x * S,   // scene x (-500..500, 0 = centre) to pixels
+      px: (x) => w / 2 + (x - fx) * S, // scene x (-500..500) to pixels
       py: (y) => hz - y * S,      // scene y (up from the waterline) to pixels
     };
     this.U = this.view.U;

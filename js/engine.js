@@ -344,7 +344,7 @@ export class Engine {
     // Pale surfaces (sails, stone, windows) catch the light of each burst.
     if (!calm && L.i > 0.02) {
       ctx.globalCompositeOperation = 'color-dodge';
-      ctx.fillStyle = `rgba(${L.r | 0},${L.g | 0},${L.b | 0},${Math.min(0.4, 0.26 * L.i)})`;
+      ctx.fillStyle = `rgba(${L.r | 0},${L.g | 0},${L.b | 0},${Math.min(0.3, 0.18 * L.i)})`;
       ctx.fillRect(0, 0, w, hz);
       ctx.globalCompositeOperation = 'source-over';
     }

@@ -315,6 +315,33 @@ button:focus-visible {
 .link-box input:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 .link-box .pill { min-height: 44px; padding: 0 18px; }
 
+/* The act caption: a small number and a name, like a programme card. */
+.act-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.75);
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease);
+}
+.act-caption.is-on { opacity: 0.92; transform: none; }
+.act-caption small {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+.act-caption span {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: clamp(17px, 2.2vw, 24px);
+  line-height: 1.1;
+  color: var(--ivory);
+}
+
 /* ---------- Start overlay ---------- */
 
 .start {

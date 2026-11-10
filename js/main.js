@@ -4,7 +4,7 @@
 
 import { Engine } from './engine.js';
 import { scenes, getScene } from './scenes/index.js';
-import { buildShow, createRunner } from './show.js';
+import { buildShow, createRunner, actAt } from './show.js';
 import { Sound } from './audio.js';
 import { parseLink, buildShareLink } from './link.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
@@ -74,6 +74,27 @@ function announce(title) {
   titleTimer = setTimeout(() => el.classList.remove('is-on'), 5200);
 }
 
+// The caption with the name of the act that is playing. It fades out, the
+// words change, and it fades back in. With reduced motion the words just change.
+let shownAct = null;
+let actTimer = 0;
+function showAct(act, total) {
+  const key = act ? act.key : null;
+  if (key === shownAct) return;
+  shownAct = key;
+  clearTimeout(actTimer);
+  const el = $('actCaption');
+  if (!act) { el.classList.remove('is-on'); return; }
+  const apply = () => {
+    $('actNum').textContent = `Act ${act.index} of ${total}`;
+    $('actName').textContent = act.label;
+    el.classList.add('is-on');
+  };
+  if (reducedMotion || !el.classList.contains('is-on')) { apply(); return; }
+  el.classList.remove('is-on');
+  actTimer = setTimeout(apply, 420);
+}
+
 // Starts the next show when its time has come. If the tab is hidden we wait:
 // the show plays as soon as the visitor comes back, and only once.
 function checkSchedule() {
@@ -93,9 +114,11 @@ function updateClock() {
 // Called every frame. Show time comes from real timestamps, not frame counts.
 engine.onTick = () => {
   checkSchedule();
-  if (!current) return;
+  if (!current) { showAct(null); return; }
   const elapsed = (Date.now() - current.startedAt) / 1000;
   for (const cue of current.runner.due(elapsed)) engine.fire(cue);
+  const show = current.runner.show;
+  showAct(actAt(show, elapsed), show.timeline.length);
   if (current.runner.finished(elapsed)) { current = null; updateClock(); }
 };
 

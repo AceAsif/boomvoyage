@@ -143,6 +143,33 @@ function finale(c, t, seconds) {
   return seconds + 3.4;
 }
 
+// ---------- act names ----------
+
+// What the caption says for each act. A scene can change any of them with
+// `show.actLabels` (for example { waterfall: 'Bridge of Light' }).
+export const ACT_LABELS = {
+  opening: 'Opening',
+  chase: 'The Chase',
+  mirror: 'Mirror',
+  fans: 'Fans',
+  willows: 'Willows',
+  garden: 'Garden',
+  crossfire: 'Crossfire',
+  sparkle: 'Sparkle',
+  waterfall: 'Waterfall',
+  finale: 'Finale',
+};
+
+// The act that is playing `elapsed` seconds into the show, or null before the
+// first act and after the last one. Acts follow each other without gaps.
+export function actAt(show, elapsed) {
+  const timeline = show.timeline;
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    if (elapsed >= timeline[i].start) return elapsed < timeline[i].end ? timeline[i] : null;
+  }
+  return null;
+}
+
 // ---------- builder ----------
 
 // cfg: the `show` object of a scene. opts.calm: gentler show (reduced motion).
@@ -179,15 +206,26 @@ export function buildShow(cfg, seed, opts = {}) {
     add(t, kind, o) { cues.push({ t, kind, ...o }); },
   };
 
+  // Every act is written down with its start and end, for the act captions.
+  // The pause after an act belongs to that act, so acts have no gaps.
+  const timeline = [];
+  const labelOf = (key) => cfg.actLabels?.[key] ?? ACT_LABELS[key] ?? key;
   let t = 0.2;
-  t += opening(c, t);
+  const run = (key, play, pause = 0) => {
+    const length = play() + pause;
+    timeline.push({ key, label: labelOf(key), start: t, end: t + length });
+    t += length;
+  };
+
+  run('opening', () => opening(c, t));
   const names = shuffle(r, Object.keys(MOVEMENTS)).slice(0, cfg.movements ?? 3);
-  for (const name of names) t += MOVEMENTS[name](c, t) + 0.5;
-  if (c.features.waterfall) t += waterfallAct(c, t) + 0.3;
-  t += finale(c, t, cfg.finaleSeconds ?? 8);
+  for (const name of names) run(name, () => MOVEMENTS[name](c, t), 0.5);
+  if (c.features.waterfall) run('waterfall', () => waterfallAct(c, t), 0.3);
+  run('finale', () => finale(c, t, cfg.finaleSeconds ?? 8));
+  timeline.forEach((act, i) => { act.index = i + 1; });
 
   cues.sort((a, b) => a.t - b.t);
-  return { seed, title: theme.name, themeId: slugify(theme.name), acts: names, cues, duration: t + 4.5 };
+  return { seed, title: theme.name, themeId: slugify(theme.name), acts: names, timeline, cues, duration: t + 4.5 };
 }
 
 // ---------- runner ----------

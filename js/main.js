@@ -1,18 +1,20 @@
 // BoomVoyage — entry point. Wiring is added step by step (see PROGRESS.md).
 
+import { Engine } from './engine.js';
+
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const canvas = document.getElementById('stage');
-const ctx = canvas.getContext('2d');
+const engine = new Engine(canvas, { reducedMotion });
 
-function paint() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(window.innerWidth * dpr);
-  canvas.height = Math.round(window.innerHeight * dpr);
-  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  sky.addColorStop(0, '#03040d');
-  sky.addColorStop(1, '#1b1f4a');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
+// Temporary empty scene until the real one is added in step 3.
+const scene = { id: 'blank', name: 'Open water', horizon: 0.76 };
+const tapColors = [[255, 190, 104], [120, 200, 255], [255, 120, 150], [140, 255, 200]];
 
-window.addEventListener('resize', paint);
-paint();
+engine.setScene(scene);
+engine.start();
+
+window.addEventListener('resize', () => engine.resize());
+canvas.addEventListener('pointerdown', (e) => engine.launchAt(e.clientX, e.clientY, tapColors));
+
+// Step 1-2 only: let the page be used before the start overlay is wired.
+document.getElementById('start').classList.add('is-gone');

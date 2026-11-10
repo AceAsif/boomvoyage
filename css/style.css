@@ -342,6 +342,18 @@ button:focus-visible {
   color: var(--ivory);
 }
 
+/* ---------- Ambient (TV) mode ---------- */
+
+/* Everything except the picture goes away. Only the short hint toast stays. */
+body.ambient .ui,
+body.ambient .float > :not(.toast) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.9s var(--ease), visibility 0s linear 0.9s;
+}
+body.ambient #stage { cursor: none; }
+
 /* ---------- Start overlay ---------- */
 
 .start {

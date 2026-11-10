@@ -7,6 +7,7 @@ import { scenes, getScene } from './scenes/index.js';
 import { buildShow, createRunner, actAt } from './show.js';
 import { Sound } from './audio.js';
 import { parseLink, buildShareLink } from './link.js';
+import { createScreenLock } from './wakelock.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -35,6 +36,8 @@ let pendingShared = link.seed !== null && (!link.scene || linkScene)
   ? { seed: link.seed, theme: link.theme }
   : null;
 let lastShow = null;     // what "Copy link" shares: { scene, seed, theme }
+let ambient = link.ambient; // ambient (TV) mode: only the show on screen
+const screenLock = createScreenLock();
 let started = false;     // true after "Tap to start"
 let schedule = null;
 let current = null;      // the show that is playing: { runner, startedAt }
@@ -137,9 +140,10 @@ function renderMute() {
   btn.setAttribute('aria-pressed', String(sound.muted));
   btn.setAttribute('aria-label', sound.muted ? 'Turn sound on' : 'Mute sound');
   btn.title = sound.muted ? 'Sound on (M)' : 'Mute (M)';
-  $('startNote').textContent = sound.muted
+  const note = sound.muted
     ? 'Sound is muted. You can turn it on at any time.'
     : 'Sound is on. You can mute it at any time.';
+  $('startNote').textContent = ambient ? `${note} Ambient mode: tap or press Esc to leave it.` : note;
 }
 
 function toggleMute() {
@@ -263,6 +267,31 @@ async function shareLink() {
   else showLinkBox(url);
 }
 
+// ---------- ambient (TV) mode ----------
+
+// Keep the screen awake only while ambient mode is on and the show has started.
+function syncScreenLock() {
+  if (ambient && started) screenLock.request();
+  else screenLock.release();
+}
+
+function setAmbient(on, { hint = false } = {}) {
+  if (ambient === on) return;
+  ambient = on;
+  document.body.classList.toggle('ambient', on);
+  $('ambientBtn').setAttribute('aria-pressed', String(on));
+  renderMute();
+  syncScreenLock();
+  if (on) {
+    closeMenu();
+    closeLinkBox();
+    if (hint) toast('Ambient mode · tap or press Esc to leave');
+  } else {
+    $('toast').classList.remove('is-on');
+    wake();
+  }
+}
+
 // ---------- fullscreen ----------
 
 const root = document.documentElement;
@@ -307,12 +336,13 @@ function begin() {
   ui.classList.remove('is-hidden');
   startShow();
   wake();
+  syncScreenLock();
 }
 
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound };
+window.boomvoyage = { engine, sound, screenLock };
 
 // Keep the floating messages just above the bottom row, whatever its height.
 if (typeof ResizeObserver === 'function') {
@@ -321,6 +351,8 @@ if (typeof ResizeObserver === 'function') {
   }).observe(document.querySelector('.bottom'));
 }
 
+document.body.classList.toggle('ambient', ambient);
+$('ambientBtn').setAttribute('aria-pressed', String(ambient));
 buildMenu();
 renderScene();
 renderMute();
@@ -339,6 +371,7 @@ setInterval(() => { checkSchedule(); updateClock(); }, 250);
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) sound.suspend(); else if (started) sound.resume();
+  if (!document.hidden) screenLock.refresh(); // the browser lets go of the lock while the tab is hidden
   checkSchedule();
   updateClock();
 });
@@ -353,6 +386,7 @@ window.addEventListener('resize', () => {
 // Tap the sky to send up a shell of your own.
 canvas.addEventListener('pointerdown', (e) => {
   if (!started) return;
+  if (ambient) { setAmbient(false); return; } // a tap leaves ambient mode; it does not fire a shell
   if (menuOpen()) { closeMenu(); return; }
   engine.launchAt(e.clientX, e.clientY, tapColors());
 });
@@ -365,6 +399,7 @@ $('launchBtn').addEventListener('click', () => {
 });
 $('muteBtn').addEventListener('click', toggleMute);
 $('shareBtn').addEventListener('click', shareLink);
+$('ambientBtn').addEventListener('click', () => setAmbient(true, { hint: true }));
 $('linkDone').addEventListener('click', closeLinkBox);
 $('fsBtn').addEventListener('click', toggleFullscreen);
 $('sceneBtn').addEventListener('click', () => (menuOpen() ? closeMenu() : openMenu()));
@@ -378,13 +413,14 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   wake();
-  if (e.key === 'Escape') { closeLinkBox(); closeMenu(); return; }
+  if (e.key === 'Escape') { closeLinkBox(); closeMenu(); setAmbient(false); return; }
   if (e.target.closest && e.target.closest('input, textarea')) return; // typing or selecting: keys are not shortcuts
   if (!started) return; // Enter / Space on the start button are handled by the browser
   const onControl = e.target.closest && e.target.closest('button, [role="option"]');
   const key = e.key.toLowerCase();
   if (key === 'm') toggleMute();
   else if (key === 'f') toggleFullscreen();
+  else if (key === 'a') setAmbient(!ambient, { hint: true });
   else if ((key === ' ' || key === 'enter') && !onControl) { e.preventDefault(); startShow(); }
 });
 

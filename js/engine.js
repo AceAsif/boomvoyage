@@ -14,6 +14,14 @@ const DEFAULT_PALETTE = {
 const REFLECT = 0.6;     // how much the water squashes a reflection
 const GLOW_SCALE = 0.25; // the bloom / reflection buffer is quarter size
 
+// Trail clean-up. The trails are made by fading the fireworks layer a little
+// every frame. With 8-bit pixels that fade can never reach zero: very faint
+// values (1-5 out of 255) round back to themselves and stay for ever as ghost
+// lines. So the layer is split into small tiles, and a tile that no spark
+// has touched for a moment is wiped completely.
+const TILE = 48;         // tile size in device pixels
+const TILE_STALE = 0.6;  // seconds; by then a trail has faded to rounding dust
+
 function makeLayer() {
   const c = document.createElement('canvas');
   return { c, x: c.getContext('2d') };
@@ -40,6 +48,7 @@ export class Engine {
     this.sky = makeLayer();
     this.land = makeLayer();
     this.water = makeLayer();
+    this.lit = makeLayer();     // scratch: the skyline tinted by the current burst
     this.P = new Particles();
     this.P.onDie = (p) => onDeath(this, p);
     this.rockets = [];
@@ -76,6 +85,7 @@ export class Engine {
     this.falls.length = 0;
     this.light.i = 0;
     if (this.view) this.fx.x.clearRect(0, 0, this.view.w, this.view.h);
+    if (this.tiles) this.tiles.fill(-1);
   }
 
   get busy() {
@@ -113,13 +123,16 @@ export class Engine {
     this.P.max = this.calm ? 500 : small ? 1000 : 1800;
     this.P.scale = Math.max(0.75, Math.min(1.4, this.U / 1000));
 
-    for (const layer of [this, this.fx, this.sky, this.land, this.water]) {
+    for (const layer of [this, this.fx, this.sky, this.land, this.water, this.lit]) {
       const c = layer.c || layer.canvas;
       const x = layer.x || layer.ctx;
       c.width = Math.round(w * dpr);
       c.height = Math.round(h * dpr);
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    this.tileCols = Math.ceil(this.fx.c.width / TILE);
+    this.tileRows = Math.ceil(this.fx.c.height / TILE);
+    this.tiles = new Float32Array(this.tileCols * this.tileRows).fill(-1); // last touch time, -1 = clean
     this.glow.c.width = Math.max(1, Math.round(w * GLOW_SCALE));
     this.glow.c.height = Math.max(1, Math.round(h * GLOW_SCALE));
 
@@ -271,6 +284,36 @@ export class Engine {
     }
   }
 
+  // Remember that something was drawn inside this box (CSS pixels).
+  touch(x0, y0, x1, y1) {
+    const k = this.view.dpr / TILE;
+    const pad = 8;
+    const c0 = Math.max(0, Math.floor((Math.min(x0, x1) - pad) * k));
+    const c1 = Math.min(this.tileCols - 1, Math.floor((Math.max(x0, x1) + pad) * k));
+    const r0 = Math.max(0, Math.floor((Math.min(y0, y1) - pad) * k));
+    const r1 = Math.min(this.tileRows - 1, Math.floor((Math.max(y0, y1) + pad) * k));
+    for (let r = r0; r <= r1; r++) {
+      const row = r * this.tileCols;
+      for (let c = c0; c <= c1; c++) this.tiles[row + c] = this.time;
+    }
+  }
+
+  // Wipe every tile that has been quiet long enough. Works in device pixels
+  // so tile edges are exact and nothing is left between tiles.
+  sweepTiles() {
+    const fx = this.fx.x, tiles = this.tiles, cols = this.tileCols;
+    const limit = this.time - TILE_STALE;
+    let open = false;
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i];
+      if (t < 0 || t > limit) continue;
+      if (!open) { fx.save(); fx.setTransform(1, 0, 0, 1, 0, 0); open = true; }
+      fx.clearRect((i % cols) * TILE, Math.floor(i / cols) * TILE, TILE, TILE);
+      tiles[i] = -1;
+    }
+    if (open) fx.restore();
+  }
+
   flash(x, y, color, size = 1) {
     const L = this.light;
     const k = Math.min(1, 0.5 + size * 0.3);
@@ -289,6 +332,7 @@ export class Engine {
     fx.globalCompositeOperation = 'lighter';
     fx.fillStyle = g;
     fx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    this.touch(x - rad, y - rad, x + rad, y + rad);
   }
 
   // ---------- drawing ----------
@@ -318,6 +362,12 @@ export class Engine {
     fx.fillRect(0, 0, w, h);
     fx.globalCompositeOperation = 'lighter';
     this.P.draw(fx);
+    const items = this.P.items;
+    for (let i = 0; i < items.length; i++) {
+      const p = items[i];
+      this.touch(p.px, p.py, p.x, p.y);
+    }
+    this.sweepTiles();
 
     glow.globalCompositeOperation = 'copy';
     glow.drawImage(this.fx.c, 0, 0, this.glow.c.width, this.glow.c.height);
@@ -332,6 +382,11 @@ export class Engine {
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, hz);
+      if (!calm) {
+        // ...and a thin even wash, so the whole sky answers a little.
+        ctx.fillStyle = `rgba(${L.r | 0},${L.g | 0},${L.b | 0},${Math.min(0.08, 0.06 * L.i)})`;
+        ctx.fillRect(0, 0, w, hz);
+      }
     }
     ctx.drawImage(this.fx.c, 0, 0, w, h);
     ctx.globalAlpha = 0.6;
@@ -342,14 +397,30 @@ export class Engine {
     ctx.drawImage(this.land.c, 0, 0, w, h);
 
     // Pale surfaces (sails, stone, windows) catch the light of each burst.
-    if (!calm && L.i > 0.02) {
-      ctx.globalCompositeOperation = 'color-dodge';
-      ctx.fillStyle = `rgba(${L.r | 0},${L.g | 0},${L.b | 0},${Math.min(0.3, 0.18 * L.i)})`;
-      ctx.fillRect(0, 0, w, hz);
-      ctx.globalCompositeOperation = 'source-over';
-    }
+    if (!calm && L.i > 0.02) this.lightLand(ctx, w, h, hz);
 
     this.renderWater(ctx, w, h, hz, dpr);
+  }
+
+  // Adds "skyline x burst colour" on top of the skyline. Dark silhouettes
+  // stay dark, pale things glow. Only adding light is used here: an earlier
+  // version used the 'color-dodge' blend mode, which drew dark patches in
+  // the sky wherever faint firework light was already present.
+  lightLand(ctx, w, h, hz) {
+    const L = this.light;
+    const s = this.lit.x;
+    s.globalCompositeOperation = 'copy';
+    s.drawImage(this.land.c, 0, 0, w, h);
+    s.globalCompositeOperation = 'multiply';
+    s.fillStyle = `rgb(${L.r | 0},${L.g | 0},${L.b | 0})`;
+    s.fillRect(0, 0, w, hz);
+    s.globalCompositeOperation = 'destination-in';
+    s.drawImage(this.land.c, 0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(0.9, 0.6 * L.i);
+    ctx.drawImage(this.lit.c, 0, 0, w, h);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // Water is drawn in thin rows, each shifted a little sideways, so the

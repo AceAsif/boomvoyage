@@ -10,12 +10,13 @@ Last updated: 2026-11-10
 - Step 5: Schedule and countdown. `js/schedule.js` (pure, timestamp based), `tests/schedule.test.js` (9 tests: background sleep, uneven ticks, Launch now, m:ss format). Countdown, progress line and automatic shows are wired in `js/main.js`. 22/22 tests pass.
 - Step 6: Sound engine and mute button. `js/audio.js` (Web Audio only: whoosh, whistle, boom, crackle, pop, waterfall hiss, ambient water/breeze/buoy bell, reverb + echo). Connected to engine events in `js/main.js`. Mute is saved in localStorage key `boomvoyage.muted`. Checked in the browser: audio signal measured during a show, mute survives a reload, no console errors.
 - Step 7: Start overlay, UI and mobile polish. "Tap to start" unlocks audio and plays the first show; scene switcher menu built from the registry (choice saved in localStorage key `boomvoyage.scene`); fullscreen button; keys M / F / Space; controls dim after 6 s without input. Checked in the browser at 1280x720, 375x812 (phone portrait) and 740x360 (phone landscape): no console errors.
+- Step 8: README. How to run, test, deploy to GitHub Pages, add a country, file map, and "Creative decisions". Added empty `.nojekyll` for GitHub Pages.
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 8: README. How to run, test, deploy to GitHub Pages, add a country, and the "Creative decisions" section.
+- All 8 steps are done. The user opens the Pull Request from `feature/boomvoyage-v1` into `main` and squash-merges it, then turns on GitHub Pages (see README).
 
 ## Plan
 1. Project skeleton and README
@@ -33,5 +34,13 @@ Last updated: 2026-11-10
 - No web fonts (they are external files). Uses system serif/sans font stacks.
 - `.claude/` is in `.gitignore` (local tool settings only).
 
+- A show starts from the moment of launch; the 2-minute countdown is start-to-start. "Launch now" resets it to 2:00.
+- If a show time passes while the tab is hidden, the show waits and plays once when the tab is visible again.
+- Shells are launched from the waterline behind the skyline; tap/click on the sky fires one extra shell (an extra, not requested).
+- Sound is synced by event, not by a second timeline: the engine emits `burst` on the frame it draws the burst.
+- Master volume 0.8 and at most 3 booms per 0.1 s, to avoid distortion in the finale.
+
 ## Problems / questions for the user
-- none
+- Sound was checked by measuring the signal level in the browser, not by ear. Please listen once and say if anything should be louder or softer.
+- Not tested on a real phone or in Safari, only in the built-in Chromium browser at phone sizes.
+- `gh` (GitHub CLI) is not installed, so the Pull Request was not opened; the user planned to open it himself.

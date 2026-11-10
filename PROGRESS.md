@@ -9,12 +9,13 @@ Last updated: 2026-11-10
 - Step 4: Show choreography. `js/show.js` (seeded show builder: opening, 3 random acts out of 7, bridge waterfall, finale; plus a cue runner that skips cues missed in a background tab), `tests/show.test.js`. "Launch now" plays a show. Measured in the browser at 1280x720: median frame 7 ms, 95% of frames under 14 ms, slowest 28 ms.
 - Step 5: Schedule and countdown. `js/schedule.js` (pure, timestamp based), `tests/schedule.test.js` (9 tests: background sleep, uneven ticks, Launch now, m:ss format). Countdown, progress line and automatic shows are wired in `js/main.js`. 22/22 tests pass.
 - Step 6: Sound engine and mute button. `js/audio.js` (Web Audio only: whoosh, whistle, boom, crackle, pop, waterfall hiss, ambient water/breeze/buoy bell, reverb + echo). Connected to engine events in `js/main.js`. Mute is saved in localStorage key `boomvoyage.muted`. Checked in the browser: audio signal measured during a show, mute survives a reload, no console errors.
+- Step 7: Start overlay, UI and mobile polish. "Tap to start" unlocks audio and plays the first show; scene switcher menu built from the registry (choice saved in localStorage key `boomvoyage.scene`); fullscreen button; keys M / F / Space; controls dim after 6 s without input. Checked in the browser at 1280x720, 375x812 (phone portrait) and 740x360 (phone landscape): no console errors.
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 7: Start overlay, UI and mobile polish. Wire "Tap to start" (unlocks audio, starts first show), scene switcher menu, fullscreen button, keyboard keys, idle fade of the UI; check phone portrait layout.
+- Step 8: README. How to run, test, deploy to GitHub Pages, add a country, and the "Creative decisions" section.
 
 ## Plan
 1. Project skeleton and README

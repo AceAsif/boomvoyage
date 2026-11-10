@@ -13,7 +13,7 @@
   <canvas id="stage" role="img" aria-label="Night harbour scene with fireworks"></canvas>
   <div class="vignette" aria-hidden="true"></div>
 
-  <div id="ui" class="ui">
+  <div id="ui" class="ui is-hidden">
     <header class="top">
       <div class="brand">
         <span class="brand-name">Boom<em>Voyage</em></span>
@@ -54,11 +54,11 @@
 
   <div id="start" class="start">
     <button id="startBtn" class="start-inner" type="button">
-      <span class="start-kicker">A fireworks voyage &middot; Stop 01</span>
+      <span id="startKicker" class="start-kicker">A fireworks voyage &middot; Stop 01</span>
       <span class="start-name">Boom<em>Voyage</em></span>
       <span id="startPlace" class="start-place">Sydney Harbour, tonight and every two minutes.</span>
       <span class="start-cta"><span class="ring" aria-hidden="true"></span>Tap to start</span>
-      <span class="start-note">Sound is on. You can mute it at any time.</span>
+      <span id="startNote" class="start-note">Sound is on. You can mute it at any time.</span>
     </button>
   </div>
 

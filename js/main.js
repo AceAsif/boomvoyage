@@ -1,23 +1,38 @@
-// BoomVoyage — entry point. Wiring is added step by step (see PROGRESS.md).
+// BoomVoyage — entry point. Connects the scene, the engine, the show
+// schedule, the sound and the small UI. No city is named in this file:
+// everything place-specific lives in js/scenes/.
 
 import { Engine } from './engine.js';
 import { scenes, getScene } from './scenes/index.js';
 import { buildShow, createRunner } from './show.js';
 import { Sound } from './audio.js';
-import { createSchedule,isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
+import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
+
+const SCENE_KEY = 'boomvoyage.scene';
+const IDLE_MS = 6000;
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const canvas = $('stage');
+const ui = $('ui');
 const engine = new Engine(canvas, { reducedMotion });
 const sound = new Sound();
 
-let scene = getScene(scenes[0].id);
-let schedule = null;     // null until the visitor starts the experience
+function stored(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function store(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* private mode: keep going */ }
+}
+
+let scene = getScene(stored(SCENE_KEY));
+let started = false;     // true after "Tap to start"
+let schedule = null;
 let current = null;      // the show that is playing: { runner, startedAt }
 let showCount = 0;
 let lastTitle = null;
 let titleTimer = 0;
+let idleTimer = 0;
 
 const tapColors = () => scene.show.palettes.flatMap((p) => p.colors);
 const intervalMs = () => scene.show.intervalSeconds * 1000;
@@ -25,6 +40,7 @@ const intervalMs = () => scene.show.intervalSeconds * 1000;
 // ---------- shows ----------
 
 function startShow(now = Date.now()) {
+  if (!started) return;
   showCount += 1;
   const seed = (now ^ (showCount * 2654435761)) >>> 0;
   const show = buildShow(scene.show, seed, { calm: reducedMotion, avoid: lastTitle });
@@ -37,9 +53,9 @@ function startShow(now = Date.now()) {
 
 function announce(title) {
   const el = $('showTitle');
-  el.innerHTML = '';
+  el.textContent = '';
   const small = document.createElement('small');
-  small.textContent = `Show No. ${showCount}`;
+  small.textContent = `${scene.name} · Show No. ${showCount}`;
   el.append(small, title);
   el.classList.add('is-on');
   clearTimeout(titleTimer);
@@ -55,10 +71,10 @@ function checkSchedule() {
 }
 
 function updateClock() {
-  if (!schedule) return;
   const now = Date.now();
-  $('countdown').textContent = formatCountdown(remainingMs(schedule, now));
-  $('barFill').style.width = `${(progress(schedule, now) * 100).toFixed(2)}%`;
+  const left = schedule ? remainingMs(schedule, now) : intervalMs();
+  $('countdown').textContent = formatCountdown(left);
+  $('barFill').style.width = `${((schedule ? progress(schedule, now) : 0) * 100).toFixed(2)}%`;
   $('clockLabel').textContent = current ? 'Showing now · next in' : 'Next show in';
 }
 
@@ -86,6 +102,9 @@ function renderMute() {
   btn.setAttribute('aria-pressed', String(sound.muted));
   btn.setAttribute('aria-label', sound.muted ? 'Turn sound on' : 'Mute sound');
   btn.title = sound.muted ? 'Sound on (M)' : 'Mute (M)';
+  $('startNote').textContent = sound.muted
+    ? 'Sound is muted. You can turn it on at any time.'
+    : 'Sound is on. You can mute it at any time.';
 }
 
 function toggleMute() {
@@ -93,33 +112,182 @@ function toggleMute() {
   renderMute();
 }
 
+// ---------- scenes ----------
+
+function renderScene() {
+  $('sceneLabel').textContent = `${scene.name} · ${scene.country}`;
+  $('startPlace').textContent = scene.tagline || `${scene.name}, ${scene.country}.`;
+  const index = scenes.indexOf(scene) + 1;
+  $('startKicker').textContent = `A fireworks voyage · Stop ${String(index).padStart(2, '0')}`;
+  for (const li of $('sceneMenu').querySelectorAll('[role="option"]')) {
+    li.setAttribute('aria-selected', String(li.dataset.id === scene.id));
+  }
+}
+
+function setScene(id) {
+  const next = getScene(id);
+  closeMenu();
+  if (next === scene) return;
+  scene = next;
+  store(SCENE_KEY, scene.id);
+  current = null;
+  lastTitle = null;
+  schedule = null;
+  engine.setScene(scene);
+  sound.setScene(scene.sound);
+  renderScene();
+  if (started) startShow(); // a new harbour says hello with a show
+  updateClock();
+}
+
+function buildMenu() {
+  const menu = $('sceneMenu');
+  for (const s of scenes) {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'option');
+    li.tabIndex = 0;
+    li.dataset.id = s.id;
+    const small = document.createElement('small');
+    small.textContent = s.country;
+    li.append(s.name, small);
+    li.addEventListener('click', () => setScene(s.id));
+    li.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setScene(s.id); }
+    });
+    menu.append(li);
+  }
+  const soon = document.createElement('li');
+  soon.className = 'soon';
+  soon.setAttribute('aria-disabled', 'true');
+  soon.textContent = 'More harbours are on the way';
+  menu.append(soon);
+}
+
+function openMenu() {
+  $('sceneMenu').hidden = false;
+  $('sceneBtn').setAttribute('aria-expanded', 'true');
+}
+function closeMenu() {
+  $('sceneMenu').hidden = true;
+  $('sceneBtn').setAttribute('aria-expanded', 'false');
+}
+const menuOpen = () => !$('sceneMenu').hidden;
+
+// ---------- fullscreen ----------
+
+const root = document.documentElement;
+const fsRequest = root.requestFullscreen || root.webkitRequestFullscreen;
+const fsExit = document.exitFullscreen || document.webkitExitFullscreen;
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+
+function toggleFullscreen() {
+  if (!fsRequest) return;
+  try {
+    const result = fsElement() ? fsExit.call(document) : fsRequest.call(root);
+    if (result && result.catch) result.catch(() => {});
+  } catch { /* the browser said no: nothing to do */ }
+}
+
+function renderFullscreen() {
+  const on = !!fsElement();
+  $('fsBtn').setAttribute('aria-label', on ? 'Leave fullscreen' : 'Fullscreen');
+  $('fsBtn').setAttribute('aria-pressed', String(on));
+}
+
+// ---------- quiet UI ----------
+
+// After a few seconds without input the controls dim, so the show has the
+// screen. Any movement, tap or key brings them back.
+function wake() {
+  ui.classList.remove('is-idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (started && !menuOpen() && !ui.contains(document.activeElement)) ui.classList.add('is-idle');
+    else wake();
+  }, IDLE_MS);
+}
+
+// ---------- start ----------
+
+function begin() {
+  if (started) return;
+  started = true;
+  sound.start(scene.sound);       // inside the click, so the browser allows audio
+  $('start').classList.add('is-gone');
+  ui.classList.remove('is-hidden');
+  startShow();
+  wake();
+}
+
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
 window.boomvoyage = { engine, sound };
 
+buildMenu();
+renderScene();
+renderMute();
+renderFullscreen();
+updateClock();
+if (!fsRequest) $('fsBtn').hidden = true;
+
 engine.setScene(scene);
 engine.start();
+
+$('startBtn').addEventListener('click', begin);
 
 // The clock text only needs a few updates per second. Browsers slow this
 // timer in background tabs, which is fine: every update reads Date.now().
 setInterval(() => { checkSchedule(); updateClock(); }, 250);
+
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) sound.suspend(); else sound.resume();
+  if (document.hidden) sound.suspend(); else if (started) sound.resume();
   checkSchedule();
   updateClock();
 });
 
-window.addEventListener('resize', () => engine.resize());
-canvas.addEventListener('pointerdown', (e) => engine.launchAt(e.clientX, e.clientY, tapColors()));
-$('launchBtn').addEventListener('click', () => startShow());
+let resizeQueued = false;
+window.addEventListener('resize', () => {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => { resizeQueued = false; engine.resize(); });
+});
+
+// Tap the sky to send up a shell of your own.
+canvas.addEventListener('pointerdown', (e) => {
+  if (!started) return;
+  if (menuOpen()) { closeMenu(); return; }
+  engine.launchAt(e.clientX, e.clientY, tapColors());
+});
+
+$('launchBtn').addEventListener('click', () => {
+  startShow();
+  const btn = $('launchBtn');
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, 1500);
+});
 $('muteBtn').addEventListener('click', toggleMute);
-renderMute();
+$('fsBtn').addEventListener('click', toggleFullscreen);
+$('sceneBtn').addEventListener('click', () => (menuOpen() ? closeMenu() : openMenu()));
+document.addEventListener('fullscreenchange', renderFullscreen);
+document.addEventListener('webkitfullscreenchange', renderFullscreen);
 
-// Until the start overlay is wired (step 7), the first click unlocks audio.
-window.addEventListener('pointerdown', () => sound.start(scene.sound), { once: true, capture: true });
+document.addEventListener('pointerdown', (e) => {
+  if (menuOpen() && !e.target.closest('.switcher')) closeMenu();
+});
 
-// Until the start overlay is wired (step 7), begin right away.
-$('start').classList.add('is-gone');
-schedule = createSchedule(intervalMs(), Date.now());
-updateClock();
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  wake();
+  if (e.key === 'Escape') { closeMenu(); return; }
+  if (!started) return; // Enter / Space on the start button are handled by the browser
+  const onControl = e.target.closest && e.target.closest('button, [role="option"]');
+  const key = e.key.toLowerCase();
+  if (key === 'm') toggleMute();
+  else if (key === 'f') toggleFullscreen();
+  else if ((key === ' ' || key === 'enter') && !onControl) { e.preventDefault(); startShow(); }
+});
+
+for (const type of ['pointermove', 'pointerdown', 'touchstart']) {
+  window.addEventListener(type, wake, { passive: true });
+}

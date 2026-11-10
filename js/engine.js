@@ -14,6 +14,16 @@ const DEFAULT_PALETTE = {
 const REFLECT = 0.6;     // how much the water squashes a reflection
 const GLOW_SCALE = 0.25; // the bloom / reflection buffer is quarter size
 
+// Trails. The fireworks layer is a black picture that only ever gets light
+// added to it. Each frame it is dimmed a little, which makes the trails.
+// Dimming alone can never reach black with 8-bit pixels: very faint values
+// (1-5 out of 255) round back to themselves and would stay for ever as a
+// thin haze. So after dimming we also SUBTRACT one step, a fixed number of
+// times per second. Subtracting always reaches zero.
+const FADE_PER_FRAME = 0.8;  // share of light kept per 1/60 s
+const SUBTRACT_RATE = 60;    // brightness steps removed per second
+const IDLE_AFTER = 1.5;      // seconds of quiet before the layer is left alone
+
 function makeLayer() {
   const c = document.createElement('canvas');
   return { c, x: c.getContext('2d') };
@@ -40,6 +50,7 @@ export class Engine {
     this.sky = makeLayer();
     this.land = makeLayer();
     this.water = makeLayer();
+    this.lit = makeLayer();     // scratch: the skyline tinted by the current burst
     this.P = new Particles();
     this.P.onDie = (p) => onDeath(this, p);
     this.rockets = [];
@@ -52,6 +63,9 @@ export class Engine {
     this.rig = {};
     this.time = 0;
     this.dt = 1 / 60;
+    this.subAcc = 0;
+    this.lastBusy = -10;
+    this.fxLit = false;
     this.last = 0;
     this.running = false;
     this.onTick = null;
@@ -75,7 +89,7 @@ export class Engine {
     this.rockets.length = 0;
     this.falls.length = 0;
     this.light.i = 0;
-    if (this.view) this.fx.x.clearRect(0, 0, this.view.w, this.view.h);
+    if (this.view) this.wipeFx();
   }
 
   get busy() {
@@ -96,14 +110,18 @@ export class Engine {
       ? scene.horizon
       : (portrait ? scene.horizon?.portrait : scene.horizon?.landscape) ?? 0.74;
     const hz = Math.round(h * hf);
-    const S = Math.max(w / 1000, h / 1400); // pixels per scene unit
+    // Pixels per scene unit. In portrait a scene may say how many units must
+    // fit across the screen, so its landmarks are never cut off.
+    const span = portrait ? scene.portraitSpan : 0;
+    const S = span ? w / span : Math.max(w / 1000, h / 1400);
     const fx = typeof scene.focusX === 'number'
       ? scene.focusX
       : (portrait ? scene.focusX?.portrait : scene.focusX?.landscape) ?? 0;
 
     this.view = {
       w, h, dpr, hz, S, portrait,
-      U: Math.min(w * 1.6, hz * 1.5),
+      // Reference size for bursts. A tall phone sky gets bigger fireworks.
+      U: portrait ? Math.min(w * 2, hz * 1.5) : Math.min(w * 1.6, hz * 1.5),
       px: (x) => w / 2 + (x - fx) * S, // scene x (-500..500) to pixels
       py: (y) => hz - y * S,      // scene y (up from the waterline) to pixels
     };
@@ -113,13 +131,14 @@ export class Engine {
     this.P.max = this.calm ? 500 : small ? 1000 : 1800;
     this.P.scale = Math.max(0.75, Math.min(1.4, this.U / 1000));
 
-    for (const layer of [this, this.fx, this.sky, this.land, this.water]) {
+    for (const layer of [this, this.fx, this.sky, this.land, this.water, this.lit]) {
       const c = layer.c || layer.canvas;
       const x = layer.x || layer.ctx;
       c.width = Math.round(w * dpr);
       c.height = Math.round(h * dpr);
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    this.wipeFx();
     this.glow.c.width = Math.max(1, Math.round(w * GLOW_SCALE));
     this.glow.c.height = Math.max(1, Math.round(h * GLOW_SCALE));
 
@@ -271,6 +290,39 @@ export class Engine {
     }
   }
 
+  // Make the fireworks layer plain black again.
+  wipeFx() {
+    const fx = this.fx.x;
+    fx.globalCompositeOperation = 'source-over';
+    fx.globalAlpha = 1;
+    fx.fillStyle = '#000';
+    fx.fillRect(0, 0, this.view.w, this.view.h);
+    this.fxLit = false;
+  }
+
+  // Dim the fireworks layer, then subtract, so old light really reaches zero.
+  fadeFx(w, h) {
+    const fx = this.fx.x;
+    fx.globalCompositeOperation = 'source-over';
+    fx.fillStyle = `rgba(0,0,0,${1 - Math.pow(FADE_PER_FRAME, this.dt * 60)})`;
+    fx.fillRect(0, 0, w, h);
+
+    this.subAcc += this.dt * SUBTRACT_RATE;
+    const n = Math.min(6, Math.floor(this.subAcc));
+    if (n < 1) return;
+    this.subAcc -= Math.floor(this.subAcc);
+    // max(0, pixel - n) with blend modes: invert, add n, invert back.
+    fx.globalCompositeOperation = 'difference';
+    fx.fillStyle = '#fff';
+    fx.fillRect(0, 0, w, h);
+    fx.globalCompositeOperation = 'lighter';
+    fx.fillStyle = `rgb(${n},${n},${n})`;
+    fx.fillRect(0, 0, w, h);
+    fx.globalCompositeOperation = 'difference';
+    fx.fillStyle = '#fff';
+    fx.fillRect(0, 0, w, h);
+  }
+
   flash(x, y, color, size = 1) {
     const L = this.light;
     const k = Math.min(1, 0.5 + size * 0.3);
@@ -285,10 +337,11 @@ export class Engine {
     const g = fx.createRadialGradient(x, y, 0, x, y, rad);
     g.addColorStop(0, 'rgba(255,250,240,0.95)');
     g.addColorStop(0.35, `rgba(${color[0]},${color[1]},${color[2]},0.45)`);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
+    g.addColorStop(1, `rgba(${color[0]},${color[1]},${color[2]},0)`);
     fx.globalCompositeOperation = 'lighter';
     fx.fillStyle = g;
     fx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    this.fxLit = true;
   }
 
   // ---------- drawing ----------
@@ -312,12 +365,16 @@ export class Engine {
       ctx.globalAlpha = 1;
     }
 
-    // Fade last frame's fireworks a little: this is what makes the trails.
-    fx.globalCompositeOperation = 'destination-out';
-    fx.fillStyle = `rgba(0,0,0,${1 - Math.pow(0.8, this.dt * 60)})`;
-    fx.fillRect(0, 0, w, h);
-    fx.globalCompositeOperation = 'lighter';
-    this.P.draw(fx);
+    // Fireworks layer: dim what is there, then add this frame's sparks.
+    if (this.busy) { this.lastBusy = this.time; this.fxLit = true; }
+    if (this.fxLit) {
+      if (this.time - this.lastBusy > IDLE_AFTER) this.wipeFx();
+      else {
+        this.fadeFx(w, h);
+        fx.globalCompositeOperation = 'lighter';
+        this.P.draw(fx);
+      }
+    }
 
     glow.globalCompositeOperation = 'copy';
     glow.drawImage(this.fx.c, 0, 0, this.glow.c.width, this.glow.c.height);
@@ -332,6 +389,11 @@ export class Engine {
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, hz);
+      if (!calm) {
+        // ...and a thin even wash, so the whole sky answers a little.
+        ctx.fillStyle = `rgba(${L.r | 0},${L.g | 0},${L.b | 0},${Math.min(0.08, 0.06 * L.i)})`;
+        ctx.fillRect(0, 0, w, hz);
+      }
     }
     ctx.drawImage(this.fx.c, 0, 0, w, h);
     ctx.globalAlpha = 0.6;
@@ -342,14 +404,30 @@ export class Engine {
     ctx.drawImage(this.land.c, 0, 0, w, h);
 
     // Pale surfaces (sails, stone, windows) catch the light of each burst.
-    if (!calm && L.i > 0.02) {
-      ctx.globalCompositeOperation = 'color-dodge';
-      ctx.fillStyle = `rgba(${L.r | 0},${L.g | 0},${L.b | 0},${Math.min(0.3, 0.18 * L.i)})`;
-      ctx.fillRect(0, 0, w, hz);
-      ctx.globalCompositeOperation = 'source-over';
-    }
+    if (!calm && L.i > 0.02) this.lightLand(ctx, w, h, hz);
 
     this.renderWater(ctx, w, h, hz, dpr);
+  }
+
+  // Adds "skyline x burst colour" on top of the skyline. Dark silhouettes
+  // stay dark, pale things glow. Only adding light is used here: an earlier
+  // version used the 'color-dodge' blend mode, which drew dark patches in
+  // the sky wherever faint firework light was already present.
+  lightLand(ctx, w, h, hz) {
+    const L = this.light;
+    const s = this.lit.x;
+    s.globalCompositeOperation = 'copy';
+    s.drawImage(this.land.c, 0, 0, w, h);
+    s.globalCompositeOperation = 'multiply';
+    s.fillStyle = `rgb(${L.r | 0},${L.g | 0},${L.b | 0})`;
+    s.fillRect(0, 0, w, hz);
+    s.globalCompositeOperation = 'destination-in';
+    s.drawImage(this.land.c, 0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(0.9, 0.6 * L.i);
+    ctx.drawImage(this.lit.c, 0, 0, w, h);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // Water is drawn in thin rows, each shifted a little sideways, so the
@@ -395,7 +473,9 @@ export class Engine {
     switch (cue.kind) {
       case 'shell': {
         const hgt = cue.h ?? 0.6;
-        this.launch(x, v.hz + 4, x + (cue.drift ?? 0) * this.U * 0.06, v.hz - v.hz * (0.36 + 0.46 * hgt),
+        // Portrait: the skyline is low, so bursts use more of the tall sky.
+        const top = v.portrait ? 0.3 + 0.56 * hgt : 0.36 + 0.46 * hgt;
+        this.launch(x, v.hz + 4, x + (cue.drift ?? 0) * this.U * 0.06, v.hz - v.hz * top,
           0.95 + 0.55 * hgt + Math.random() * 0.08, cue, cue.whistle);
         break;
       }

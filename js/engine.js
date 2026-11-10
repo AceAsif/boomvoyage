@@ -410,7 +410,8 @@ export class Engine {
       case 'waterfall':
         if (this.rig.waterfall) {
           this.falls.push({ t: 0, dur: cue.dur ?? 8, acc: 0, pts: this.rig.waterfall });
-          this.emit('waterfall', { dur: cue.dur ?? 8 });
+          const pts = this.rig.waterfall;
+          this.emit('waterfall', { x: (pts[0].x + pts[pts.length - 1].x) / 2, dur: cue.dur ?? 8 });
         }
         break;
       case 'crown':

@@ -1,0 +1,10 @@
+{
+  "name": "boomvoyage",
+  "version": "1.0.0",
+  "description": "Fireworks from around the world, every 2 minutes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

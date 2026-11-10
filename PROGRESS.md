@@ -1,6 +1,6 @@
 # Progress - BoomVoyage v1
 Branch: feature/boomvoyage-v1
-Last updated: 2026-11-10
+Last updated: 2026-11-10 (all steps done)
 
 ## Done
 - Step 1: Project skeleton. `index.html`, `css/style.css` (full UI shell), `js/main.js` (stub), `package.json` (only for `node --test`), `.gitignore`, `README.md`.
@@ -33,7 +33,6 @@ Last updated: 2026-11-10
 - `package.json` exists only to set `"type": "module"` so Node can test the same files the browser uses. No dependencies.
 - No web fonts (they are external files). Uses system serif/sans font stacks.
 - `.claude/` is in `.gitignore` (local tool settings only).
-
 - A show starts from the moment of launch; the 2-minute countdown is start-to-start. "Launch now" resets it to 2:00.
 - If a show time passes while the tab is hidden, the show waits and plays once when the tab is visible again.
 - Shells are launched from the waterline behind the skyline; tap/click on the sky fires one extra shell (an extra, not requested).
@@ -43,4 +42,4 @@ Last updated: 2026-11-10
 ## Problems / questions for the user
 - Sound was checked by measuring the signal level in the browser, not by ear. Please listen once and say if anything should be louder or softer.
 - Not tested on a real phone or in Safari, only in the built-in Chromium browser at phone sizes.
-- `gh` (GitHub CLI) is not installed, so the Pull Request was not opened; the user planned to open it himself.
+- `gh` (GitHub CLI) is not installed, so the Pull Request was not opened. Open it on GitHub from the branch page.

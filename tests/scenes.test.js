@@ -140,6 +140,9 @@ for (const scene of scenes) {
 // ---------- life between shows ----------
 
 for (const scene of scenes) {
+  test(`scene "${scene.id}": has life between shows`, () => {
+    assert.ok(Array.isArray(scene.life), 'every scene needs a life list');
+  });
   if (!scene.life) continue;
 
   test(`scene "${scene.id}": its life events are well formed`, () => {

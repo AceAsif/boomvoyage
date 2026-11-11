@@ -7,7 +7,7 @@
 // (Big Ben) and the Houses of Parliament in warm floodlight. Between them,
 // Westminster Bridge with a red bus. The clock shows midnight.
 
-import { towerRow, lamp, rng, shifted, haze, boat } from './kit.js';
+import { towerRow, lamp, rng, shifted, haze, boat, glow, crossing, vessel, afloat } from './kit.js';
 
 const WARM = '#ffd9a0';
 const ICE = '#dff1ff';
@@ -403,6 +403,77 @@ function rig(v) {
   return { wheel, hub, clock: [{ x: v.px(BEN.x + BEN.w / 2), y: v.py(101.6) }] };
 }
 
+// ---------- life between shows ----------
+// Small things that happen while the countdown runs (see js/life.js).
+
+const life = [
+  {
+    // A river bus with a row of lit windows, crossing the whole view.
+    id: 'riverbus', group: 'water', layer: 'water', weight: 2, duration: [24, 32], sound: 'horn',
+    setup: (r) => ({ depth: 0.1 + r() * 0.14 }),
+    draw(ctx, v, e) {
+      const s = v.S * (1.5 + e.p.depth * 2.4);
+      vessel(ctx, crossing(v, e, 40 * s), afloat(v, e.p.depth, e, 0.5), s, {
+        dir: e.dir, length: 38, decks: 1, hull: '#0d1c3a', stripe: '#e6eefc', cabin: '#16233c', windows: '#dff1ff', lights: '#ffffff', glow: '#cfe6ff',
+      });
+    },
+  },
+  {
+    // A small tug working its way a short distance up the river.
+    id: 'tug', group: 'water', layer: 'water', duration: [18, 26], sound: 'water',
+    setup: (r) => ({ depth: 0.36 + r() * 0.12, from: 0.15 + r() * 0.4 }),
+    draw(ctx, v, e) {
+      const s = v.S * (1.3 + e.p.depth * 2);
+      const start = e.dir > 0 ? e.p.from : 1 - e.p.from;
+      vessel(ctx, v.w * (start + e.dir * 0.26 * e.u), afloat(v, e.p.depth, e, 1), s, {
+        dir: e.dir, length: 15, decks: 1, hull: '#090c12', stripe: '#b8202a', cabin: '#1a1f2a', windows: '#ffd9a0', funnel: '#b8202a', lights: '#ffe6b8',
+      });
+    },
+  },
+  {
+    // The wheel turning: eight brighter lights travel slowly round the rim.
+    // With reduce motion they are lit but stay where they are.
+    id: 'wheel', group: 'lights', layer: 'land', duration: [14, 20], sound: 'chime',
+    setup: (r) => ({ phase: r() * 6.3 }),
+    draw(ctx, v, e) {
+      const x0 = v.px(layout(v).eyeX), y0 = v.py(EYE.y), R = (EYE.r + 4.2) * v.S;
+      const turn = e.p.phase + (e.calm ? 0 : e.dir * e.t * 0.2);
+      for (let i = 0; i < 8; i++) {
+        const a = turn + (i / 8) * Math.PI * 2;
+        glow(ctx, x0 + Math.cos(a) * R, y0 + Math.sin(a) * R, Math.max(1, 1.5 * v.S), i % 2 ? '#ff9ad0' : '#c4ecff', 0.85);
+      }
+    },
+  },
+  {
+    // The clock face glowing a little brighter, slowly, like a breath.
+    id: 'clock', group: 'lights', layer: 'land', duration: [9, 13], sound: 'chime',
+    draw(ctx, v, e) {
+      const pulse = e.calm ? 0.5 : 0.3 + 0.7 * Math.pow(Math.sin(e.t * 1.1), 2);
+      glow(ctx, v.px(BEN.x + BEN.w / 2), v.py(101.6), Math.max(3, 4.6 * v.S), '#fff0c4', pulse * 0.7);
+    },
+  },
+  {
+    // A second red bus crossing Westminster Bridge from one end to the other.
+    id: 'bus', group: 'road', layer: 'land', duration: [16, 22],
+    draw(ctx, v, e) {
+      const X = v.px, Y = v.py, S = v.S;
+      const [L, R] = layout(v).bridge;
+      const DECK = 14, LEN = 13;
+      const x = L + (R - L - LEN) * (e.dir > 0 ? e.u : 1 - e.u);
+      ctx.fillStyle = '#d0242e';
+      ctx.fillRect(X(x), Y(DECK + 6.4), LEN * S, 6.4 * S);
+      ctx.fillStyle = '#ffe9b8';
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(X(x + 1 + i * 2.4), Y(DECK + 5.6), 1.7 * S, 1.6 * S);
+        ctx.fillRect(X(x + 1 + i * 2.4), Y(DECK + 3), 1.7 * S, 1.6 * S);
+      }
+      const front = e.dir > 0 ? x + LEN : x, back = e.dir > 0 ? x : x + LEN;
+      glow(ctx, X(front), Y(DECK + 1.2), Math.max(0.6, 0.55 * S), '#fff4d0', 0.9);
+      glow(ctx, X(back), Y(DECK + 1.2), Math.max(0.5, 0.45 * S), '#ff4a3c', 0.8);
+    },
+  },
+];
+
 export default {
   id: 'london',
   name: 'London',
@@ -425,6 +496,7 @@ export default {
   drawSkyline,
   drawWater,
   rig,
+  life,
 
   show: {
     intervalSeconds: 120,

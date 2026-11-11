@@ -141,6 +141,12 @@ export function glint(ctx, x, y, r, color, strength = 1) {
 
 // Where something that crosses the whole screen is now, in pixels.
 // e.u runs 0..1; e.dir says left-to-right (1) or right-to-left (-1).
+// Height on the screen of something floating: depth 0 = at the waterline,
+// 1 = bottom of the screen. It bobs a little.
+export function afloat(v, depth, e, wobble = 1) {
+  return v.hz + (v.h - v.hz) * depth + Math.sin(e.t * 1.3) * wobble * v.S;
+}
+
 export function crossing(v, e, margin = 60) {
   const u = e.dir > 0 ? e.u : 1 - e.u;
   return -margin + u * (v.w + margin * 2);

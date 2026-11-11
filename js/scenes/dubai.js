@@ -6,7 +6,7 @@
 // The Burj Khalifa stands in the middle and is the star of the scene. Other
 // towers, the Dubai Frame and a row of palms keep it company.
 
-import { towerRow, lamp, rng, shifted, haze, boat } from './kit.js';
+import { towerRow, lamp, rng, shifted, haze, boat, glow, crossing, vessel, afloat } from './kit.js';
 
 const WARM = '#ffd9a0';
 const COOL = '#dfeaff';
@@ -304,6 +304,89 @@ function rig(v) {
   return { tiers, spire, facade };
 }
 
+// ---------- life between shows ----------
+// Small things that happen while the countdown runs (see js/life.js).
+
+const life = [
+  {
+    // A wooden dhow with a lantern-lit sail, gliding across the lake.
+    id: 'dhow', group: 'water', layer: 'water', weight: 2, duration: [24, 32], sound: 'water',
+    setup: (r) => ({ depth: 0.14 + r() * 0.2 }),
+    draw(ctx, v, e) {
+      const s = v.S * (1.5 + e.p.depth * 2.4);
+      vessel(ctx, crossing(v, e, 30 * s), afloat(v, e.p.depth, e, 0.6), s, {
+        dir: e.dir, length: 26, decks: 1, hull: '#2a170c', stripe: '#c98a3a', cabin: '#3a2212', windows: '#ffc070', sail: '#e9d2a4', lights: '#ffb060', glow: '#ffb868',
+      });
+    },
+  },
+  {
+    // An abra (water taxi) pottering a short way along the shore.
+    id: 'abra', group: 'water', layer: 'water', duration: [18, 26], sound: 'horn',
+    setup: (r) => ({ depth: 0.05 + r() * 0.08, from: 0.12 + r() * 0.45 }),
+    draw(ctx, v, e) {
+      const s = v.S * (1.3 + e.p.depth * 2);
+      const start = e.dir > 0 ? e.p.from : 1 - e.p.from;
+      vessel(ctx, v.w * (start + e.dir * 0.3 * e.u), afloat(v, e.p.depth, e, 0.5), s, {
+        dir: e.dir, length: 17, decks: 1, hull: '#1c1009', stripe: '#b8752c', cabin: '#24160c', windows: '#ffb060', lights: '#ffd9a0', glow: '#ffb868',
+      });
+    },
+  },
+  {
+    // A plane on its way out of the airport: a steady white light, a red
+    // wing light and a strobe that blinks (no blinking with reduce motion).
+    id: 'plane', layer: 'sky', duration: [18, 24],
+    setup: (r) => ({ y: 0.1 + r() * 0.2, climb: 0.03 + r() * 0.07, phase: r() * 3 }),
+    draw(ctx, v, e) {
+      const x = crossing(v, e, 20);
+      const u = e.dir > 0 ? e.u : 1 - e.u;
+      const y = v.hz * (e.p.y + e.p.climb * (1 - u));
+      const size = Math.max(0.7, 0.6 * v.S);
+      glow(ctx, x, y, size, '#fff4dc', 0.75);
+      glow(ctx, x - e.dir * 3.2 * size, y + size * 0.4, size * 0.85, '#ff4a3c', 0.8);
+      const beat = (e.t + e.p.phase) % 1.4;
+      if (!e.calm && beat < 0.09) glow(ctx, x - e.dir * 1.6 * size, y, size * 1.9, '#ffffff', 1);
+    },
+  },
+  {
+    // A band of light climbing the Burj Khalifa, from the plaza to the spire.
+    // With reduce motion the whole tower glows softly instead.
+    id: 'pulse', group: 'lights', layer: 'land', duration: [10, 14],
+    draw(ctx, v, e) {
+      const head = -30 + e.u * (TIP + 70);
+      ctx.fillStyle = '#d6ecff';
+      for (let y = 2; y < TIP; y += 5) {
+        const k = e.calm ? 0.3 : Math.max(0, 1 - Math.abs(y - head) / 36);
+        if (k <= 0) continue;
+        const left = halfWidth(y, 1), right = halfWidth(y, 2);
+        ctx.globalAlpha = e.alpha * k * k * 0.6;
+        ctx.fillRect(v.px(-left), v.py(y + 5), (left + right) * v.S, 5 * v.S + 0.5);
+      }
+      ctx.globalAlpha = e.alpha;
+      if (!e.calm && head > 0 && head < TIP) glow(ctx, v.px(0), v.py(head), Math.max(1.2, 1.6 * v.S), '#ffffff', 0.5);
+    },
+  },
+  {
+    // The fountain on the lake practising: a row of thin white jets swaying.
+    id: 'fountain', group: 'lights', layer: 'water', duration: [11, 16], sound: 'water', calm: false,
+    setup: (r) => ({ phase: r() * 6, wave: 0.5 + r() * 0.5 }),
+    draw(ctx, v, e) {
+      const base = v.hz + 2 * v.S;
+      const width = Math.max(1, 0.8 * v.S);
+      ctx.fillStyle = '#eaf6ff';
+      for (let i = 0; i < 17; i++) {
+        const x = -96 + i * 12;
+        const lift = Math.pow(Math.sin(e.t * 1.1 + i * e.p.wave + e.p.phase), 2);
+        const h = (7 + 26 * lift) * Math.sin(Math.PI * Math.min(1, e.u * 1.05)) * v.S;
+        ctx.globalAlpha = e.alpha * 0.5;
+        ctx.fillRect(v.px(x) - width / 2, base - h, width, h);
+        ctx.globalAlpha = e.alpha * 0.16;
+        ctx.fillRect(v.px(x) - width * 1.5, base - h * 0.5, width * 3, h * 0.5);
+      }
+      ctx.globalAlpha = e.alpha;
+    },
+  },
+];
+
 export default {
   id: 'dubai',
   name: 'Dubai',
@@ -326,6 +409,7 @@ export default {
   drawSkyline,
   drawWater,
   rig,
+  life,
 
   show: {
     intervalSeconds: 120,

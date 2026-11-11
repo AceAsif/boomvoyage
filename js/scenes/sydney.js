@@ -3,7 +3,7 @@
 // Scene units: x runs -500..500 (0 = middle of the view), y goes UP from the
 // waterline. Use v.px(x) / v.py(y) to turn them into pixels and v.S for sizes.
 
-import { towerRow, towerPlan, lamp, glow, crossing, vessel } from './kit.js';
+import { towerRow, towerPlan, lamp, glow, crossing, vessel, afloat as waterY } from './kit.js';
 
 // Harbour Bridge geometry, in scene units.
 const B = { L: -20, R: 420, deck: 40, cx: 200, half: 220, panels: 28 };
@@ -389,7 +389,6 @@ function rig(v) {
 // Small things that happen while the countdown runs (see js/life.js).
 // Each draws itself; e.u runs from 0 to 1 over the event's life.
 
-const waterY = (v, depth, e, wobble = 1) => v.hz + (v.h - v.hz) * depth + Math.sin(e.t * 1.3) * wobble * v.S;
 const CITY_TOWERS = towerPlan(CITY_FRONT);
 
 const life = [

@@ -10,6 +10,8 @@ Last updated: 2026-11-11
   - `js/scenes/kit.js`: shared helpers `shifted`, `haze`, `boat`.
   - `index.html` / `js/main.js`: no fixed Sydney text any more. Start-screen line, "Stop 0N", page title and canvas label come from the scene; brand line is now "Fireworks from the world's waterfronts"; menu says "places".
   - Tests: `tests/flavour.test.js` (11), generic checks for every scene in `tests/scenes.test.js` (link opens it, texts, themes, acts, signature anchors on every screen size, drawing runs on a pretend canvas at 7 screen sizes), `tests/helpers/fake-canvas.js`. 94/94 pass.
+  Screenshots looked at: Chrome 1600x815, 390x844, 844x390 (idle and signature); Firefox 360x740, 1024x768, 768x1024 (bursts).
+  Speed, heavy load plus the signature act, 1600x815 at pixel ratio 1.5, 144 Hz: Firefox 160 about 100 fps (typical 7.0 ms, slow 13.9 ms, worst 13.9 ms; fireworks layer at 80%), Chrome 157 144 fps (typical 6.9 ms, slow 7.0 ms; layer at 100%).
 
 ## In progress
 - nothing

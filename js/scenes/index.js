@@ -1,9 +1,11 @@
-// Scene registry. To add a country: create one file next to this one
+// Scene registry. To add a place: create one file next to this one
 // (copy sydney.js as a start), import it here and add it to the list.
+// The first scene in the list is the default.
 
 import sydney from './sydney.js';
+import dubai from './dubai.js';
 
-export const scenes = [sydney];
+export const scenes = [sydney, dubai];
 
 export function getScene(id) {
   return scenes.find((s) => s.id === id) || scenes[0];

@@ -15,11 +15,13 @@ export function rng(seed) {
 // `shape(t)` (0..1 along the row) scales the height, to give the row a profile.
 export function towerRow(ctx, v, o) {
   const r = rng(o.seed ?? 1);
+  const towers = [];   // { x, w, h } of every tower, in scene units
   let x = o.from;
   while (x < o.to) {
     const w = o.minW + r() * (o.maxW - o.minW);
     const t = (x - o.from) / (o.to - o.from);
     const h = (o.minH + r() * (o.maxH - o.minH)) * (o.shape ? o.shape(t) : 1);
+    towers.push({ x, w, h });
     const px = v.px(x), py = v.py(h), pw = w * v.S, ph = h * v.S + 1;
     ctx.fillStyle = o.colors[Math.floor(r() * o.colors.length)];
     ctx.fillRect(px, py, pw, ph);
@@ -27,6 +29,14 @@ export function towerRow(ctx, v, o) {
     if (o.windows) windows(ctx, r, px, py, pw, ph, v.S, o.windows);
     x += w + r() * (o.gap ?? 4);
   }
+  return towers;
+}
+
+// The same towers without drawing them: for events that need to know where
+// the buildings are (for example windows that switch on and off).
+export function towerPlan(o) {
+  const quiet = { fillRect() {}, globalAlpha: 1, fillStyle: '' };
+  return towerRow(quiet, { px: (x) => x, py: (y) => -y, S: 1 }, o);
 }
 
 function windows(ctx, r, px, py, pw, ph, S, o) {
@@ -145,12 +155,16 @@ export function vessel(ctx, x, y, s, o = {}) {
   const L = o.length ?? 30, decks = o.decks ?? 1, dir = o.dir ?? 1;
   const top = -2 - decks * 3;
 
-  // Light on the water under the boat.
-  const g = ctx.createLinearGradient(0, y + s, 0, y + s * 12);
-  g.addColorStop(0, o.glow ?? 'rgba(255,220,170,0.30)');
-  g.addColorStop(1, 'rgba(255,220,170,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(x - L * 0.4 * s, y + s, L * 0.8 * s, s * 11);
+  // Light on the water under the boat: a few short ripples, fainter and
+  // narrower the further down they are.
+  ctx.fillStyle = o.glow ?? '#ffdcaa';
+  const lit = decks > 0 ? 0.3 : 0.14;
+  for (let i = 0; i < 5; i++) {
+    const half = L * (0.4 - i * 0.06) * s;
+    ctx.globalAlpha = base * lit * (1 - i / 5);
+    ctx.fillRect(x - half + Math.sin(i * 2.1 + x * 0.05) * s, y + (1.6 + i * 1.7) * s, half * 2, Math.max(0.6, 0.55 * s));
+  }
+  ctx.globalAlpha = base;
 
   ctx.save();
   ctx.translate(x, y);

@@ -5,6 +5,9 @@
 // effect, so sound and picture stay together.
 
 const KEY = 'boomvoyage.muted';
+// The quiet sounds a life event may ask for (see js/life.js and the scenes).
+export const LIFE_SOUNDS = ['horn', 'water', 'chime'];
+
 const LEVEL = 0.8; // master volume when not muted (leaves headroom for the finale)
 
 export function loadMuted() {
@@ -383,5 +386,66 @@ export class Sound {
       osc.start(t);
       osc.stop(t + 3.8);
     });
+  }
+
+  // ---------- life between shows ----------
+  // One very quiet sound for a small event between shows: 'horn' (a distant
+  // boat horn), 'water' (a few soft laps) or 'chime' (three gentle notes).
+  // They go through the same master volume as everything else, so the mute
+  // button silences them, and they are far quieter than any firework.
+  life(kind) {
+    if (!this.live || document.hidden || !LIFE_SOUNDS.includes(kind)) return;
+    const ctx = this.ctx, t = ctx.currentTime + 0.5 + Math.random() * 2;
+    const out = this.voice(Math.random() * 1.2 - 0.6);
+    if (kind === 'horn') {
+      const tone = ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.value = 420;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.014, t + 0.3);
+      g.gain.setValueAtTime(0.014, t + 1.5);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+      tone.connect(g).connect(out);
+      const base = 138 + Math.random() * 30;
+      for (const mult of [1, 1.26]) {
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.value = base * mult;
+        osc.connect(tone);
+        osc.start(t);
+        osc.stop(t + 2.7);
+      }
+    } else if (kind === 'chime') {
+      const notes = [1174.7, 1568, 1318.5];
+      notes.forEach((f, i) => {
+        const at = t + i * 0.42;
+        const osc = ctx.createOscillator();
+        osc.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(0.006, at + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 2.4);
+        osc.connect(g).connect(out);
+        osc.start(at);
+        osc.stop(at + 2.5);
+      });
+    } else {
+      const src = this.noise();
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = 620;
+      band.Q.value = 0.7;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      for (let i = 0; i < 3; i++) {
+        const at = t + i * 1.1;
+        g.gain.exponentialRampToValueAtTime(0.014 - i * 0.003, at + 0.45);
+        g.gain.exponentialRampToValueAtTime(0.002, at + 1.05);
+      }
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 4);
+      src.connect(band).connect(g).connect(out);
+      src.stop(t + 4.1);
+    }
   }
 }

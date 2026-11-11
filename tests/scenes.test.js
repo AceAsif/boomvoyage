@@ -4,6 +4,7 @@ import { scenes, getScene } from '../js/scenes/index.js';
 import { buildShow, SIGNATURES, SIGNATURE_RIG, EXTRA_MOVEMENTS, MOVEMENTS } from '../js/show.js';
 import { parseLink } from '../js/link.js';
 import { createLife, lifeRandom } from '../js/life.js';
+import { LIFE_SOUNDS } from '../js/audio.js';
 import { fakeContext, fakeView, SCREENS } from './helpers/fake-canvas.js';
 
 test('there is at least one scene and ids are unique', () => {
@@ -155,6 +156,7 @@ for (const scene of scenes) {
       assert.ok(d.duration[0] >= 3 && d.duration[0] <= d.duration[1] && d.duration[1] <= 40, `${d.id}: odd duration`);
       if (d.sound) assert.equal(typeof d.sound, 'string');
     }
+    for (const d of scene.life) assert.ok(d.sound === undefined || LIFE_SOUNDS.includes(d.sound), `${d.id}: unknown sound "${d.sound}"`);
     assert.ok(scene.life.filter((d) => d.calm !== false).length >= 2, 'something must be left with reduce motion');
     assert.ok(new Set(scene.life.map((d) => d.group ?? d.id)).size >= 2, 'needs two groups, or two events could never overlap');
   });

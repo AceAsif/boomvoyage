@@ -355,7 +355,8 @@ if (link.debug) {
   setInterval(() => {
     const v = engine.view;
     meter.textContent = `${formatStats(engine.stats.summary())}\n`
-      + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}`;
+      + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
+      + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)`;
   }, 500);
 }
 

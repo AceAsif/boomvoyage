@@ -75,6 +75,7 @@ function startShow(now = Date.now()) {
   lastTitle = show.title;
   lastShow = { scene: scene.id, seed: show.seed, theme: show.themeId };
   current = { runner: createRunner(show), startedAt: now };
+  sound.hushLife();     // life sounds fade away as the show begins
   schedule = restart(schedule ?? createSchedule(intervalMs(), now), now);
   announce(show.title);
   updateClock();
@@ -193,6 +194,7 @@ function setScene(id) {
   pendingShared = null;
   schedule = null;
   engine.setScene(scene);
+  sound.hushLife();
   sound.setScene(scene.sound);
   life = makeLife();
   renderScene();
@@ -375,7 +377,8 @@ if (link.debug) {
     meter.textContent = `${formatStats(engine.stats.summary())}\n`
       + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
       + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
-      + `life: ${life.active.map((e) => e.id).join(', ') || '-'}`;
+      + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
+      + 'life sounds: press 1 horn · 2 water · 3 chime';
   }, 500);
 }
 
@@ -453,6 +456,13 @@ document.addEventListener('keydown', (e) => {
   if (!started) return; // Enter / Space on the start button are handled by the browser
   const onControl = e.target.closest && e.target.closest('button, [role="option"]');
   const key = e.key.toLowerCase();
+  // ?debug=1 only: hear each life sound at once, without waiting for its event.
+  if (link.debug && ['1', '2', '3'].includes(key)) {
+    const kind = ['horn', 'water', 'chime'][Number(key) - 1];
+    const played = sound.life(kind, { now: true });
+    toast(played ? `Life sound: ${kind}` : sound.muted ? 'Sound is muted' : `Not played: ${kind} (two are already playing)`);
+    return;
+  }
   if (key === 'm') toggleMute();
   else if (key === 'f') toggleFullscreen();
   else if (key === 'a') setAmbient(!ambient, { hint: true });

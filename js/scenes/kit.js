@@ -96,3 +96,100 @@ export function boat(ctx, v, x, depth, k = 1, side = '#ff6a5a') {
   ctx.fillStyle = g;
   ctx.fillRect(bx - 0.8 * s, by + 1 * s, 1.6 * s, 16 * s);
 }
+
+// ---------- helpers for "life between shows" events ----------
+// Life events are faded as a whole with ctx.globalAlpha, so these helpers
+// never reset it: they only multiply the value they find.
+
+// A small soft light (like lamp(), but safe inside a fading life event).
+export function glow(ctx, x, y, radius, color, strength = 1) {
+  const base = ctx.globalAlpha;
+  ctx.fillStyle = color;
+  ctx.globalAlpha = base * strength;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = base * strength * 0.22;
+  ctx.beginPath();
+  ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = base;
+}
+
+// A point of light with a thin cross, for sparkles.
+export function glint(ctx, x, y, r, color, strength = 1) {
+  const base = ctx.globalAlpha;
+  ctx.globalAlpha = base * strength;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(x - r * 2.8, y - r * 0.2, r * 5.6, r * 0.4);
+  ctx.fillRect(x - r * 0.2, y - r * 2.8, r * 0.4, r * 5.6);
+  ctx.globalAlpha = base;
+}
+
+// Where something that crosses the whole screen is now, in pixels.
+// e.u runs 0..1; e.dir says left-to-right (1) or right-to-left (-1).
+export function crossing(v, e, margin = 60) {
+  const u = e.dir > 0 ? e.u : 1 - e.u;
+  return -margin + u * (v.w + margin * 2);
+}
+
+// A lit boat on the water, drawn at pixel (x, y) with its bow toward `dir`.
+// `s` is its size in pixels per unit. Options give each city its own boat:
+//   length, hull, cabin, decks (0-2), windows (colour), lights ('#rrggbb'),
+//   funnel (colour), mast (true), sail (colour: a dhow's slanted sail).
+export function vessel(ctx, x, y, s, o = {}) {
+  const base = ctx.globalAlpha;
+  const L = o.length ?? 30, decks = o.decks ?? 1, dir = o.dir ?? 1;
+  const top = -2 - decks * 3;
+
+  // Light on the water under the boat.
+  const g = ctx.createLinearGradient(0, y + s, 0, y + s * 12);
+  g.addColorStop(0, o.glow ?? 'rgba(255,220,170,0.30)');
+  g.addColorStop(1, 'rgba(255,220,170,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - L * 0.4 * s, y + s, L * 0.8 * s, s * 11);
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(dir * s, s);
+  ctx.fillStyle = o.hull ?? '#05070e';
+  ctx.beginPath();
+  ctx.moveTo(-L / 2, -2);
+  ctx.lineTo(L / 2 + 2.5, -2);
+  ctx.lineTo(L / 2 - 1.5, 1);
+  ctx.lineTo(-L / 2 + 1, 1);
+  ctx.closePath();
+  ctx.fill();
+  if (o.stripe) { ctx.fillStyle = o.stripe; ctx.fillRect(-L / 2 + 0.6, -2, L + 0.8, 0.7); }
+
+  for (let d = 0; d < decks; d++) {
+    const x0 = -L * (0.4 - d * 0.06), wd = L * (0.74 - d * 0.14);
+    ctx.fillStyle = o.cabin ?? '#0b0e18';
+    ctx.fillRect(x0, -2 - (d + 1) * 3, wd, 3);
+    ctx.fillStyle = o.windows ?? '#ffd9a0';
+    const n = Math.max(3, Math.round(wd / 2.4));
+    for (let i = 0; i < n; i++) ctx.fillRect(x0 + 0.7 + (i * (wd - 1.4)) / n, -2 - (d + 1) * 3 + 0.75, ((wd - 1.4) / n) * 0.62, 1.5);
+  }
+  if (o.funnel) { ctx.fillStyle = o.funnel; ctx.fillRect(-L * 0.06, top - 2.6, 2.6, 2.6); }
+  if (o.sail) {
+    ctx.fillStyle = '#05070e';
+    ctx.fillRect(-0.3, -15, 0.6, 13);
+    ctx.fillStyle = o.sail;
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.36, -5);
+    ctx.lineTo(L * 0.3, -16);
+    ctx.lineTo(L * 0.16, -3.4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  if (o.mast) { ctx.fillStyle = '#05070e'; ctx.fillRect(-0.25, top - 6, 0.5, 6); }
+  ctx.restore();
+
+  const mastY = y + (o.sail ? -16 : o.mast ? top - 6 : top - 0.8) * s;
+  glow(ctx, x, mastY, Math.max(0.7, 0.55 * s), o.lights ?? '#ffe6b8', 0.95);
+  glow(ctx, x + dir * (L / 2) * s, y - 2.6 * s, Math.max(0.5, 0.4 * s), dir > 0 ? '#7dffb0' : '#ff6a5a', 0.9);
+  ctx.globalAlpha = base;
+}

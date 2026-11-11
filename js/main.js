@@ -9,6 +9,7 @@ import { Sound } from './audio.js';
 import { parseLink, buildShareLink } from './link.js';
 import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
+import { createLife, drawLife } from './life.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -46,6 +47,18 @@ let showCount = 0;
 let lastTitle = null;
 let titleTimer = 0;
 let idleTimer = 0;
+
+// Life between shows: small events from the scene's own `life` list. It has
+// its own random numbers, so it never changes which fireworks a seed gives.
+let lifeCount = 0;
+function makeLife() {
+  lifeCount += 1;
+  const made = createLife(scene.life || [], { seed: (Date.now() ^ (lifeCount * 0x9e3779b1)) >>> 0, calm: reducedMotion });
+  made.onStart = (e) => { if (e.def.sound) sound.life?.(e.def.sound); };
+  return made;
+}
+let life = makeLife();
+engine.lifeDraw = (ctx, v, layer) => drawLife(ctx, v, life.active, layer);
 
 const tapColors = () => scene.show.palettes.flatMap((p) => p.colors);
 const intervalMs = () => scene.show.intervalSeconds * 1000;
@@ -116,8 +129,10 @@ function updateClock() {
 }
 
 // Called every frame. Show time comes from real timestamps, not frame counts.
-engine.onTick = () => {
+engine.onTick = (now, dt) => {
   checkSchedule();
+  // Life runs only while it is quiet: started, no show, no sparks left in the air.
+  life.tick(dt, schedule ? remainingMs(schedule, Date.now()) / 1000 : Infinity, started && !current && !engine.busy);
   if (!current) { showAct(null); return; }
   const elapsed = (Date.now() - current.startedAt) / 1000;
   for (const cue of current.runner.due(elapsed)) engine.fire(cue);
@@ -179,6 +194,7 @@ function setScene(id) {
   schedule = null;
   engine.setScene(scene);
   sound.setScene(scene.sound);
+  life = makeLife();
   renderScene();
   if (started) startShow(); // a new harbour says hello with a show
   updateClock();
@@ -345,7 +361,7 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock };
+window.boomvoyage = { engine, sound, screenLock, get life() { return life; } };
 
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).
@@ -358,7 +374,8 @@ if (link.debug) {
     const v = engine.view;
     meter.textContent = `${formatStats(engine.stats.summary())}\n`
       + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
-      + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)`;
+      + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
+      + `life: ${life.active.map((e) => e.id).join(', ') || '-'}`;
   }, 500);
 }
 

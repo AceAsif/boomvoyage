@@ -4,6 +4,7 @@
 //   ?seed=3735928559       which show to play first (the show's own seed)
 //   ?theme=ember-jade      which colour theme that show used
 //   ?ambient=1             start in ambient (TV) mode
+//   ?debug=1               show a small frame-rate meter
 //
 // A "Copy link" link carries scene + seed + theme, so the receiver's first
 // show is the same show the sender saw.
@@ -23,7 +24,7 @@ function id(value) {
 }
 
 // Reads a query string such as "?scene=sydney&seed=42". Anything that is
-// missing or does not look right becomes null (false for ambient), so a
+// missing or does not look right becomes null (false for ambient and debug), so a
 // broken link never breaks the page.
 export function parseLink(search = '') {
   const p = new URLSearchParams(search);
@@ -33,13 +34,10 @@ export function parseLink(search = '') {
     ? Number(rawSeed)
     : null;
 
-  let ambient = false;
-  if (p.has('ambient')) {
-    const v = p.get('ambient').trim().toLowerCase();
-    ambient = !['0', 'false', 'no', 'off'].includes(v); // "?ambient" alone also counts as on
-  }
+  // An on/off option: "?ambient" alone also counts as on.
+  const flag = (name) => p.has(name) && !['0', 'false', 'no', 'off'].includes(p.get(name).trim().toLowerCase());
 
-  return { scene: id(p.get('scene')), seed, theme: id(p.get('theme')), ambient };
+  return { scene: id(p.get('scene')), seed, theme: id(p.get('theme')), ambient: flag('ambient'), debug: flag('debug') };
 }
 
 // Builds the link to share. `href` is the address of the current page; any

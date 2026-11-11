@@ -356,6 +356,20 @@ function rig(v) {
     const x = B.cx + t * 2 * B.half * 0.84;
     crown.push({ x: v.px(x), y: v.py(upperChord(x) + 2), angle: t * 1.7 });
   }
+  // The waterfall. On wide screens it pours from the bridge deck, as in the
+  // real show. In portrait the Opera House stands in front of the left half
+  // of the deck and would hide half of it, so there the curtain hangs from
+  // the arch instead: its whole top edge is in view, above the sails, and
+  // the sparks fall behind the Opera House like a lit backdrop.
+  if (v.portrait) {
+    const waterfall = [];
+    const steps = 24;
+    for (let i = 0; i <= steps; i++) {
+      const x = B.L + 8 + ((B.R - B.L - 16) * i) / steps;
+      waterfall.push({ x: v.px(x), y: v.py(lowerChord(x) - 1.5) });
+    }
+    return { waterfall, waterfallDensity: 1.5, crown };
+  }
   return {
     waterfall: [
       { x: v.px(B.L + 6), y: v.py(B.deck - 3) },

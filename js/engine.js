@@ -3,6 +3,7 @@
 // the scene config passed to setScene().
 
 import { Particles } from './particles.js';
+import { createGovernor } from './quality.js';
 import { burst, comet, mine, onDeath, css, GOLD, WHITE, BURST_TYPES } from './fireworks.js';
 
 const DEFAULT_PALETTE = {
@@ -50,7 +51,9 @@ export class Engine {
     this.sky = makeLayer();
     this.land = makeLayer();
     this.water = makeLayer();
-    this.lit = makeLayer();     // scratch: the skyline tinted by the current burst
+    // The skyline split into its red, green and blue parts (see paintLit).
+    this.lit = [makeLayer(), makeLayer(), makeLayer()];
+    this.litBand = { y: 0, h: 0 };
     this.P = new Particles();
     this.P.onDie = (p) => onDeath(this, p);
     this.rockets = [];
@@ -69,6 +72,14 @@ export class Engine {
     this.last = 0;
     this.running = false;
     this.onTick = null;
+    // For measuring (?debug=1). `stats` records frame times; `skip` can turn
+    // single drawing parts off (for example 'water') to see what they cost.
+    this.stats = null;
+    this.skip = new Set();
+    // Makes the fireworks layer smaller if (and only if) this browser cannot
+    // keep up with it at full size. See quality.js.
+    this.governor = createGovernor();
+    this.fxScale = 1;
     this.frame = this.frame.bind(this);
   }
 
@@ -131,13 +142,14 @@ export class Engine {
     this.P.max = this.calm ? 500 : small ? 1000 : 1800;
     this.P.scale = Math.max(0.75, Math.min(1.4, this.U / 1000));
 
-    for (const layer of [this, this.fx, this.sky, this.land, this.water, this.lit]) {
+    for (const layer of [this, this.sky, this.land, this.water]) {
       const c = layer.c || layer.canvas;
       const x = layer.x || layer.ctx;
       c.width = Math.round(w * dpr);
       c.height = Math.round(h * dpr);
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    this.sizeFx();
     this.wipeFx();
     this.glow.c.width = Math.max(1, Math.round(w * GLOW_SCALE));
     this.glow.c.height = Math.max(1, Math.round(h * GLOW_SCALE));
@@ -145,6 +157,7 @@ export class Engine {
     this.rig = scene.rig ? scene.rig(this.view) : {};
     this.paintSky();
     this.paintLand();
+    this.paintLit();
     this.paintWater();
     if (!this.running) this.render();
   }
@@ -178,6 +191,48 @@ export class Engine {
     const { w, h } = this.view;
     this.land.x.clearRect(0, 0, w, h);
     if (this.scene.drawSkyline) this.scene.drawSkyline(this.land.x, this.view);
+  }
+
+  // Prepares "the skyline lit by a burst". A burst of colour (r, g, b) should
+  // add skyline x colour on top of the skyline. Doing that multiplication
+  // every frame is very slow in Firefox (it is done without the graphics
+  // card). So the skyline is split ONCE into a red-only, a green-only and a
+  // blue-only picture. Each frame, lightLand() just adds those three with
+  // the strength of r, g and b. The result is the same, the cost is tiny.
+  paintLit() {
+    const { w, hz, dpr } = this.view;
+    const land = this.land.c;
+
+    // Only the rows that contain skyline are kept, to save memory.
+    const probe = document.createElement('canvas');
+    probe.width = 32;
+    probe.height = Math.max(1, Math.ceil(hz / 4));
+    const px = probe.getContext('2d', { willReadFrequently: true });
+    px.drawImage(land, 0, 0, land.width, Math.round(hz * dpr), 0, 0, probe.width, probe.height);
+    const data = px.getImageData(0, 0, probe.width, probe.height).data;
+    let first = probe.height;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i]) { first = Math.floor(i / 4 / probe.width); break; }
+    }
+    const top = Math.max(0, first * 4 - 8);
+    const band = (this.litBand = { y: top, h: Math.max(0, hz - top) });
+    if (!band.h) return;
+
+    const tints = ['#ff0000', '#00ff00', '#0000ff'];
+    this.lit.forEach((layer, i) => {
+      layer.c.width = land.width;
+      layer.c.height = Math.max(1, Math.round(band.h * dpr));
+      const x = layer.x;
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      const sy = Math.round(band.y * dpr);
+      x.globalCompositeOperation = 'source-over';
+      x.drawImage(land, 0, sy, land.width, layer.c.height, 0, 0, land.width, layer.c.height);
+      x.globalCompositeOperation = 'multiply';        // keep one colour channel
+      x.fillStyle = tints[i];
+      x.fillRect(0, 0, layer.c.width, layer.c.height);
+      x.globalCompositeOperation = 'destination-in';  // and the skyline's own shape
+      x.drawImage(land, 0, sy, land.width, layer.c.height, 0, 0, land.width, layer.c.height);
+    });
   }
 
   paintWater() {
@@ -221,6 +276,11 @@ export class Engine {
   frame(now) {
     if (!this.running) return;
     // Clamp the step: after a background pause we continue, we do not jump.
+    if (this.stats) this.stats.push(now - this.last);
+    if (this.governor) {
+      this.governor.frame(now - this.last, this.P.count > 150);
+      if (this.governor.scale !== this.fxScale) this.setFxScale(this.governor.scale);
+    }
     const dt = Math.min(0.05, Math.max(0.001, (now - this.last) / 1000));
     this.last = now;
     this.dt = dt;
@@ -272,7 +332,7 @@ export class Engine {
     const pts = fall.pts;
     const spread = Math.min(1, fall.t / 1.6);
     const ending = Math.min(1, (fall.dur - fall.t) / 1.5);
-    fall.acc += 430 * this.q * ending * (0.3 + 0.7 * spread) * dt;
+    fall.acc += 430 * (this.rig.waterfallDensity ?? 1) * this.q * ending * (0.3 + 0.7 * spread) * dt;
     const white = css(WHITE), gold = css(GOLD);
     const S = this.view.S;
     while (fall.acc >= 1) {
@@ -288,6 +348,34 @@ export class Engine {
         { drag: 0.7, grav: 1.7, size: 1.5, flicker: this.calm ? 0 : 0.35, fade: 0.45, floor: this.view.hz + Math.random() * 5 * S }
       );
     }
+  }
+
+  // Gives the fireworks layer its size: the screen's pixels times fxScale.
+  // It is always drawn stretched over the whole picture, so a smaller layer
+  // only makes the sparks a little softer.
+  sizeFx() {
+    const { w, h, dpr } = this.view;
+    const k = dpr * this.fxScale;
+    this.fx.c.width = Math.max(1, Math.round(w * k));
+    this.fx.c.height = Math.max(1, Math.round(h * k));
+    this.fx.x.setTransform(k, 0, 0, k, 0, 0);
+  }
+
+  // Changes the size of the fireworks layer in the middle of a show without
+  // a blink: what is on it now is copied across.
+  setFxScale(scale) {
+    if (scale === this.fxScale || !this.view) return;
+    const { w, h } = this.view;
+    const keep = document.createElement('canvas');
+    keep.width = this.fx.c.width;
+    keep.height = this.fx.c.height;
+    keep.getContext('2d').drawImage(this.fx.c, 0, 0);
+    this.fxScale = scale;
+    this.sizeFx();
+    const lit = this.fxLit;
+    this.wipeFx();
+    this.fx.x.drawImage(keep, 0, 0, w, h);
+    this.fxLit = lit;
   }
 
   // Make the fireworks layer plain black again.
@@ -309,7 +397,7 @@ export class Engine {
 
     this.subAcc += this.dt * SUBTRACT_RATE;
     const n = Math.min(6, Math.floor(this.subAcc));
-    if (n < 1) return;
+    if (n < 1 || this.skip.has('subtract')) return;
     this.subAcc -= Math.floor(this.subAcc);
     // max(0, pixel - n) with blend modes: invert, add n, invert back.
     fx.globalCompositeOperation = 'difference';
@@ -351,12 +439,13 @@ export class Engine {
     const ctx = this.ctx, fx = this.fx.x, glow = this.glow.x;
     const L = this.light;
     const calm = this.calm;
+    const skip = this.skip;
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.drawImage(this.sky.c, 0, 0, w, h);
 
-    if (!calm) {
+    if (!calm && !skip.has('twinkle')) {
       ctx.fillStyle = '#fff';
       for (const s of this.twinkles) {
         ctx.globalAlpha = 0.25 + 0.25 * Math.sin(this.time * s.sp + s.ph);
@@ -370,18 +459,20 @@ export class Engine {
     if (this.fxLit) {
       if (this.time - this.lastBusy > IDLE_AFTER) this.wipeFx();
       else {
-        this.fadeFx(w, h);
+        if (!skip.has('fade')) this.fadeFx(w, h);
         fx.globalCompositeOperation = 'lighter';
-        this.P.draw(fx);
+        if (!skip.has('particles')) this.P.draw(fx);
       }
     }
 
-    glow.globalCompositeOperation = 'copy';
-    glow.drawImage(this.fx.c, 0, 0, this.glow.c.width, this.glow.c.height);
+    if (!skip.has('glow')) {
+      glow.globalCompositeOperation = 'copy';
+      glow.drawImage(this.fx.c, 0, 0, this.glow.c.width, this.glow.c.height);
+    }
 
     // The sky itself lights up in the colour of the last burst.
     ctx.globalCompositeOperation = 'lighter';
-    if (L.i > 0.01) {
+    if (L.i > 0.01 && !skip.has('skyglow')) {
       const rad = this.U * 0.95;
       const g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, rad);
       const a = (calm ? 0.05 : 0.15) * L.i;
@@ -395,37 +486,37 @@ export class Engine {
         ctx.fillRect(0, 0, w, hz);
       }
     }
-    ctx.drawImage(this.fx.c, 0, 0, w, h);
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(this.glow.c, 0, 0, w, h);
-    ctx.globalAlpha = 1;
+    if (!skip.has('fx')) ctx.drawImage(this.fx.c, 0, 0, w, h);
+    if (!skip.has('glow')) {
+      ctx.globalAlpha = 0.6;
+      ctx.drawImage(this.glow.c, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+    }
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.land.c, 0, 0, w, h);
 
     // Pale surfaces (sails, stone, windows) catch the light of each burst.
-    if (!calm && L.i > 0.02) this.lightLand(ctx, w, h, hz);
+    if (!calm && L.i > 0.02 && !skip.has('light')) this.lightLand(ctx, w);
 
     this.renderWater(ctx, w, h, hz, dpr);
   }
 
-  // Adds "skyline x burst colour" on top of the skyline. Dark silhouettes
-  // stay dark, pale things glow. Only adding light is used here: an earlier
-  // version used the 'color-dodge' blend mode, which drew dark patches in
-  // the sky wherever faint firework light was already present.
-  lightLand(ctx, w, h, hz) {
+  // Adds "skyline x burst colour" on top of the skyline: dark silhouettes
+  // stay dark, pale things glow. Only adding light is used (see paintLit).
+  lightLand(ctx, w) {
     const L = this.light;
-    const s = this.lit.x;
-    s.globalCompositeOperation = 'copy';
-    s.drawImage(this.land.c, 0, 0, w, h);
-    s.globalCompositeOperation = 'multiply';
-    s.fillStyle = `rgb(${L.r | 0},${L.g | 0},${L.b | 0})`;
-    s.fillRect(0, 0, w, hz);
-    s.globalCompositeOperation = 'destination-in';
-    s.drawImage(this.land.c, 0, 0, w, h);
+    const band = this.litBand;
+    if (!band.h) return;
+    const k = Math.min(0.9, 0.6 * L.i) / 255;
+    const parts = [L.r, L.g, L.b];
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = Math.min(0.9, 0.6 * L.i);
-    ctx.drawImage(this.lit.c, 0, 0, w, h);
+    for (let i = 0; i < 3; i++) {
+      const alpha = Math.min(1, k * parts[i]);
+      if (alpha < 0.004) continue;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(this.lit[i].c, 0, band.y, w, band.h);
+    }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -442,12 +533,17 @@ export class Engine {
     ctx.fillStyle = (pal.water || DEFAULT_PALETTE.water)[0][1];
     ctx.fillRect(0, hz, w, wh);
 
+    if (this.skip.has('water')) {
+      ctx.drawImage(this.water.c, 0, hz * dpr, w * dpr, wh * dpr, 0, hz, w, wh);
+      return;
+    }
     for (let y = 0; y < wh; y += step) {
       const d = y / wh;
       const off = Math.sin(y * 0.23 + t * 1.7) * (0.5 + d * 5) + Math.sin(y * 0.071 - t * 0.9) * d * 4;
       ctx.drawImage(this.water.c, 0, (hz + y) * dpr, w * dpr, step * dpr, off, hz + y, w, step);
     }
 
+    if (this.skip.has('reflect') || this.skip.has('glow')) return;
     ctx.globalCompositeOperation = 'lighter';
     for (let y = 0; y < wh; y += step) {
       const d = y / wh;

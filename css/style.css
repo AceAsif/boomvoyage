@@ -354,6 +354,22 @@ body.ambient .float > :not(.toast) {
 }
 body.ambient #stage { cursor: none; }
 
+/* ---------- Frame-rate meter (?debug=1 only) ---------- */
+
+.meter {
+  position: fixed;
+  left: calc(var(--pad) + env(safe-area-inset-left));
+  top: calc(var(--pad) + 64px + env(safe-area-inset-top));
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #a6f0b8;
+  font: 11px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  white-space: pre;
+  pointer-events: none;
+}
+
 /* ---------- Start overlay ---------- */
 
 .start {
@@ -444,6 +460,11 @@ body.ambient #stage { cursor: none; }
   #fsBtn { grid-column: 3; grid-row: 2; }
   .pill { padding: 0 16px; letter-spacing: 0.14em; }
   .scene-btn { padding: 0 13px; font-size: 12px; }
+  /* On a narrow phone the harbour name may shorten with "…" instead of leaving the screen. */
+  .brand { flex: none; }
+  .switcher { min-width: 0; }
+  .scene-btn { max-width: 100%; }
+  #sceneLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .scene-menu { min-width: 216px; }
 }
 @media (max-width: 380px) {

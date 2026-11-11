@@ -69,6 +69,10 @@ export class Engine {
     this.last = 0;
     this.running = false;
     this.onTick = null;
+    // For measuring (?debug=1). `stats` records frame times; `skip` can turn
+    // single drawing parts off (for example 'water') to see what they cost.
+    this.stats = null;
+    this.skip = new Set();
     this.frame = this.frame.bind(this);
   }
 
@@ -221,6 +225,7 @@ export class Engine {
   frame(now) {
     if (!this.running) return;
     // Clamp the step: after a background pause we continue, we do not jump.
+    if (this.stats) this.stats.push(now - this.last);
     const dt = Math.min(0.05, Math.max(0.001, (now - this.last) / 1000));
     this.last = now;
     this.dt = dt;
@@ -309,7 +314,7 @@ export class Engine {
 
     this.subAcc += this.dt * SUBTRACT_RATE;
     const n = Math.min(6, Math.floor(this.subAcc));
-    if (n < 1) return;
+    if (n < 1 || this.skip.has('subtract')) return;
     this.subAcc -= Math.floor(this.subAcc);
     // max(0, pixel - n) with blend modes: invert, add n, invert back.
     fx.globalCompositeOperation = 'difference';
@@ -351,12 +356,13 @@ export class Engine {
     const ctx = this.ctx, fx = this.fx.x, glow = this.glow.x;
     const L = this.light;
     const calm = this.calm;
+    const skip = this.skip;
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.drawImage(this.sky.c, 0, 0, w, h);
 
-    if (!calm) {
+    if (!calm && !skip.has('twinkle')) {
       ctx.fillStyle = '#fff';
       for (const s of this.twinkles) {
         ctx.globalAlpha = 0.25 + 0.25 * Math.sin(this.time * s.sp + s.ph);
@@ -370,18 +376,20 @@ export class Engine {
     if (this.fxLit) {
       if (this.time - this.lastBusy > IDLE_AFTER) this.wipeFx();
       else {
-        this.fadeFx(w, h);
+        if (!skip.has('fade')) this.fadeFx(w, h);
         fx.globalCompositeOperation = 'lighter';
-        this.P.draw(fx);
+        if (!skip.has('particles')) this.P.draw(fx);
       }
     }
 
-    glow.globalCompositeOperation = 'copy';
-    glow.drawImage(this.fx.c, 0, 0, this.glow.c.width, this.glow.c.height);
+    if (!skip.has('glow')) {
+      glow.globalCompositeOperation = 'copy';
+      glow.drawImage(this.fx.c, 0, 0, this.glow.c.width, this.glow.c.height);
+    }
 
     // The sky itself lights up in the colour of the last burst.
     ctx.globalCompositeOperation = 'lighter';
-    if (L.i > 0.01) {
+    if (L.i > 0.01 && !skip.has('skyglow')) {
       const rad = this.U * 0.95;
       const g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, rad);
       const a = (calm ? 0.05 : 0.15) * L.i;
@@ -395,16 +403,18 @@ export class Engine {
         ctx.fillRect(0, 0, w, hz);
       }
     }
-    ctx.drawImage(this.fx.c, 0, 0, w, h);
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(this.glow.c, 0, 0, w, h);
-    ctx.globalAlpha = 1;
+    if (!skip.has('fx')) ctx.drawImage(this.fx.c, 0, 0, w, h);
+    if (!skip.has('glow')) {
+      ctx.globalAlpha = 0.6;
+      ctx.drawImage(this.glow.c, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+    }
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.land.c, 0, 0, w, h);
 
     // Pale surfaces (sails, stone, windows) catch the light of each burst.
-    if (!calm && L.i > 0.02) this.lightLand(ctx, w, h, hz);
+    if (!calm && L.i > 0.02 && !skip.has('light')) this.lightLand(ctx, w, h, hz);
 
     this.renderWater(ctx, w, h, hz, dpr);
   }
@@ -442,12 +452,17 @@ export class Engine {
     ctx.fillStyle = (pal.water || DEFAULT_PALETTE.water)[0][1];
     ctx.fillRect(0, hz, w, wh);
 
+    if (this.skip.has('water')) {
+      ctx.drawImage(this.water.c, 0, hz * dpr, w * dpr, wh * dpr, 0, hz, w, wh);
+      return;
+    }
     for (let y = 0; y < wh; y += step) {
       const d = y / wh;
       const off = Math.sin(y * 0.23 + t * 1.7) * (0.5 + d * 5) + Math.sin(y * 0.071 - t * 0.9) * d * 4;
       ctx.drawImage(this.water.c, 0, (hz + y) * dpr, w * dpr, step * dpr, off, hz + y, w, step);
     }
 
+    if (this.skip.has('reflect') || this.skip.has('glow')) return;
     ctx.globalCompositeOperation = 'lighter';
     for (let y = 0; y < wh; y += step) {
       const d = y / wh;

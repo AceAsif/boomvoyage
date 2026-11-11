@@ -354,6 +354,22 @@ body.ambient .float > :not(.toast) {
 }
 body.ambient #stage { cursor: none; }
 
+/* ---------- Frame-rate meter (?debug=1 only) ---------- */
+
+.meter {
+  position: fixed;
+  left: calc(var(--pad) + env(safe-area-inset-left));
+  top: calc(var(--pad) + 64px + env(safe-area-inset-top));
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #a6f0b8;
+  font: 11px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  white-space: pre;
+  pointer-events: none;
+}
+
 /* ---------- Start overlay ---------- */
 
 .start {

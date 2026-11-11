@@ -8,6 +8,7 @@ import { buildShow, createRunner, actAt } from './show.js';
 import { Sound } from './audio.js';
 import { parseLink, buildShareLink } from './link.js';
 import { createScreenLock } from './wakelock.js';
+import { createFrameStats, formatStats } from './stats.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -343,6 +344,20 @@ function begin() {
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
 window.boomvoyage = { engine, sound, screenLock };
+
+// ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
+// It looks at the last 600 frames (about ten seconds).
+if (link.debug) {
+  engine.stats = createFrameStats(600);
+  const meter = document.createElement('div');
+  meter.className = 'meter';
+  document.body.append(meter);
+  setInterval(() => {
+    const v = engine.view;
+    meter.textContent = `${formatStats(engine.stats.summary())}\n`
+      + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}`;
+  }, 500);
+}
 
 // Keep the floating messages just above the bottom row, whatever its height.
 if (typeof ResizeObserver === 'function') {

@@ -433,7 +433,7 @@ export class Engine {
       sp.acc -= 1;
       const p = sp.pts[Math.floor(Math.random() * sp.pts.length)];
       this.P.add(p.x, p.y, 0, 0, 0.16 + Math.random() * 0.34, Math.random() < 0.7 ? white : gold,
-        { front: true, size: 2 + Math.random() * 1.2, drag: 1, grav: 0, flicker: this.calm ? 0 : 0.4 });
+        { front: true, size: 2 + Math.random() * 1.6, drag: 1, grav: 0, flicker: this.calm ? 0 : 0.35 });
     }
     this.frontUntil = this.time + 0.6;
   }

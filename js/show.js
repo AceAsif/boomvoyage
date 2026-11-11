@@ -235,7 +235,7 @@ function spire(c, t) {
 
 // A tower twinkles in slow pulses while gold willows open beside it.
 function glitter(c, t) {
-  c.add(t, 'glitter', { set: 'tower', dur: 8.6, rate: 1, pulse: true });
+  c.add(t, 'glitter', { set: 'tower', dur: 8.6, rate: 1.8, pulse: true });
   c.shell(t + 1.4, 0.2, 0.8, 'willow', { size: 1.1 });
   c.shell(t + 2.6, 0.8, 0.8, 'willow', { size: 1.1 });
   c.shell(t + 4.6, 0.28, 0.88, 'kamuro', { size: 1.1 });

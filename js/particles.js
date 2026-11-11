@@ -93,6 +93,18 @@ export class Particles {
       let a = 1 - p.life / p.ttl;
       if (p.fade !== 1) a = Math.pow(a, p.fade);
       ctx.globalAlpha = a;
+      if (front) {
+        // Front particles stand still. A line of no length draws nothing,
+        // so each is drawn as a small glint: a dot with a thin cross.
+        const r = p.size * this.scale * 0.5;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, 6.2832);
+        ctx.fill();
+        ctx.fillRect(p.x - r * 2.8, p.y - r * 0.2, r * 5.6, r * 0.4);
+        ctx.fillRect(p.x - r * 0.2, p.y - r * 2.8, r * 0.4, r * 5.6);
+        continue;
+      }
       ctx.strokeStyle = p.color;
       ctx.lineWidth = p.size * this.scale;
       ctx.beginPath();

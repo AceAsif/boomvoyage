@@ -12,6 +12,9 @@ Last updated: 2026-11-11
   - Tests: `tests/flavour.test.js` (11), generic checks for every scene in `tests/scenes.test.js` (link opens it, texts, themes, acts, signature anchors on every screen size, drawing runs on a pretend canvas at 7 screen sizes), `tests/helpers/fake-canvas.js`. 94/94 pass.
   Screenshots looked at: Chrome 1600x815, 390x844, 844x390 (idle and signature); Firefox 360x740, 1024x768, 768x1024 (bursts).
   Speed, heavy load plus the signature act, 1600x815 at pixel ratio 1.5, 144 Hz: Firefox 160 about 100 fps (typical 7.0 ms, slow 13.9 ms, worst 13.9 ms; fireworks layer at 80%), Chrome 157 144 fps (typical 6.9 ms, slow 7.0 ms; layer at 100%).
+  Bug found and fixed here: glitter particles were not drawn at all (a line of no length draws nothing). `js/particles.js` now draws front particles as small glints. This also fixed the facade glitter in Dubai's signature act.
+  Screenshots looked at: Chrome 1600x815, 390x844, close-up of the glitter; Firefox 360x740, 844x390, 768x1024, 1024x768.
+  Speed, same test as Dubai: Firefox 160 about 101 fps (typical 7.0 ms, slow 13.9 ms, worst 13.9 ms; layer at 80%), Chrome 157 144 fps (typical 6.9 ms, slow 7.0 ms; layer at 100%).
 
 ## In progress
 - nothing

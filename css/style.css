@@ -110,6 +110,8 @@ button:focus-visible {
 }
 
 /* Scene switcher */
+/* The header sits above the show title, so the open menu is never written over. */
+.top { position: relative; z-index: 3; }
 .switcher { position: relative; }
 .scene-btn {
   display: inline-flex;
@@ -145,7 +147,7 @@ button:focus-visible {
   list-style: none;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: rgba(8, 10, 26, 0.82);
+  background: rgba(8, 10, 26, 0.94);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   animation: rise 0.22s var(--ease);

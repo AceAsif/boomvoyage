@@ -22,10 +22,7 @@ Last updated: 2026-11-11
 - nothing
 
 ## Next step
-- Step 2: Dubai. `js/scenes/dubai.js` (Burj Khalifa as the star, towers, Dubai Frame, lake; signature `spire`), one import line in `js/scenes/index.js`, `tests/dubai.test.js`. Screenshots at 390x844, 360x740, 844x390, 1024x768, 1600x815 (Chrome and Firefox). Measure Firefox and Chrome with the bench script. Commit.
-- Step 3: Paris (`js/scenes/paris.js`, Eiffel Tower over the Seine, signature `glitter`). Same checks. Commit.
-- Step 4: London (`js/scenes/london.js`, Elizabeth Tower, Parliament, London Eye, signature `wheel`). Same checks. Commit.
-- Step 5: README (four places, link examples, a "Creative decisions" entry per city, how to use the new scene options).
+- All steps are done. The user opens the Pull Request from `feature/dubai-paris-london` into `main` and merges it.
 
 ## Decisions
 - New show options are all optional; a scene that sets none gets exactly the old shows (needed so Sydney share links keep working).
@@ -33,4 +30,8 @@ Last updated: 2026-11-11
 - "Stop 0N" is the scene's place in `js/scenes/index.js`.
 
 ## Problems / questions for the user
+- Measured on one PC only (144 Hz screen, pixel ratio 1.5). Phone and tablet sizes were checked in desktop Chrome and Firefox set to those sizes, not on real devices.
+- Sound was not listened to; each city only changes the existing sound settings (reverb, echo, pitch, ambience).
+- Reduced-motion mode was not looked at for the new cities (the glitter has no flicker and half the rate there; covered by code, not by a screenshot).
+- No reference pictures were looked up; the landmarks are drawn from knowledge of them.
 - The brand line changed from "harbours" to "waterfronts" (Paris and London are river cities). Say if you want the old words back.

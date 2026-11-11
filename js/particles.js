@@ -41,6 +41,7 @@ export class Particles {
     p.die = o.die ?? 0;            // 1 = crackle pop, 2 = crossette split
     p.aux = o.aux ?? 0;
     p.floor = o.floor ?? 0;        // dies when it falls below this y (0 = off)
+    p.front = o.front ?? false;    // drawn in front of the skyline, with no trail
     p.acc = 0;
     this.items.push(p);
     return p;
@@ -80,11 +81,14 @@ export class Particles {
     }
   }
 
-  draw(ctx) {
+  // Draws the particles behind the skyline (front = false) or the few that
+  // sit in front of it (front = true).
+  draw(ctx, front = false) {
     const items = this.items;
     ctx.lineCap = 'round';
     for (let i = 0; i < items.length; i++) {
       const p = items[i];
+      if (p.front !== front) continue;
       if (p.flicker && Math.random() < p.flicker) continue;
       let a = 1 - p.life / p.ttl;
       if (p.fade !== 1) a = Math.pow(a, p.fade);

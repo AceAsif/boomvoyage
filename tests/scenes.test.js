@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scenes, getScene } from '../js/scenes/index.js';
+import { buildShow, SIGNATURES, SIGNATURE_RIG, EXTRA_MOVEMENTS, MOVEMENTS } from '../js/show.js';
+import { parseLink } from '../js/link.js';
+import { fakeContext, fakeView, SCREENS } from './helpers/fake-canvas.js';
 
 test('there is at least one scene and ids are unique', () => {
   assert.ok(scenes.length >= 1);
@@ -44,5 +47,91 @@ for (const scene of scenes) {
     if (rig.crown) {
       for (const p of rig.crown) assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.angle));
     }
+  });
+}
+
+// ---------- checks every scene must pass (old and new) ----------
+
+test('Sydney is the first scene, so it is the default', () => {
+  assert.equal(scenes[0].id, 'sydney');
+  assert.equal(getScene(null).id, 'sydney');
+  assert.equal(getScene(undefined).id, 'sydney');
+});
+
+for (const scene of scenes) {
+  test(`scene "${scene.id}": a link with ?scene=${scene.id} opens it`, () => {
+    const link = parseLink(`?scene=${scene.id}&seed=5`);
+    assert.equal(link.scene, scene.id);
+    assert.equal(getScene(link.scene), scene);
+    assert.equal(parseLink(`?scene=${scene.id.toUpperCase()}`).scene, scene.id, 'capital letters also work');
+  });
+
+  test(`scene "${scene.id}": has its own start-screen text and menu text`, () => {
+    assert.ok(scene.tagline && scene.tagline.length > 10);
+    assert.ok(scene.name.length <= 16, 'the name must fit the switcher button on a phone');
+    assert.ok(scene.country.length <= 16);
+  });
+
+  test(`scene "${scene.id}": themes have unique names and bright colours`, () => {
+    const names = scene.show.palettes.map((p) => p.name);
+    assert.equal(new Set(names).size, names.length);
+    assert.ok(names.length >= 4, 'at least four themes, so shows differ');
+    for (const p of scene.show.palettes) {
+      for (const c of p.colors) assert.ok(Math.max(...c) >= 150, `${p.name}: a colour is too dark to see`);
+    }
+  });
+
+  test(`scene "${scene.id}": its acts exist and its shows build`, () => {
+    for (const act of scene.show.acts || []) assert.ok(MOVEMENTS[act] || EXTRA_MOVEMENTS[act], `unknown act "${act}"`);
+    if (scene.show.acts) assert.ok(scene.show.acts.length > (scene.show.movements ?? 3), 'more acts than slots, so shows differ');
+    for (const key of Object.keys(scene.show.actLabels || {})) assert.equal(typeof scene.show.actLabels[key], 'string');
+    const kinds = new Set();
+    for (let seed = 1; seed <= 25; seed++) {
+      const s = buildShow(scene.show, seed);
+      assert.ok(s.duration > 30 && s.duration < scene.show.intervalSeconds);
+      assert.equal(s.timeline[0].key, 'opening');
+      assert.equal(s.timeline[s.timeline.length - 1].key, 'finale');
+      for (const act of s.timeline) assert.ok(act.label && act.label !== act.key, `act "${act.key}" has no caption`);
+      kinds.add(s.acts.join(','));
+    }
+    assert.ok(kinds.size >= 8, 'shows should differ from seed to seed');
+  });
+
+  test(`scene "${scene.id}": has a middle act of its own (waterfall or signature) with its anchors on screen`, () => {
+    const sig = scene.show.features?.waterfall ? 'waterfall' : scene.show.signature;
+    assert.ok(sig === 'waterfall' || SIGNATURES[sig], 'needs features.waterfall or a known show.signature');
+    assert.ok(buildShow(scene.show, 3).timeline.some((a) => a.key === sig));
+    const sets = sig === 'waterfall' ? ['waterfall'] : SIGNATURE_RIG[sig];
+    for (const [w, h] of SCREENS) {
+      const v = fakeView(scene, w, h);
+      const rig = scene.rig(v);
+      for (const name of sets) {
+        const pts = rig[name];
+        assert.ok(Array.isArray(pts) && pts.length >= 1, `${w}x${h}: rig has no "${name}" anchors`);
+        for (const p of pts) {
+          assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), `${w}x${h}: bad "${name}" anchor`);
+          assert.ok(p.x >= -2 && p.x <= w + 2, `${w}x${h}: a "${name}" anchor is off the side of the screen (x=${p.x.toFixed(0)})`);
+          assert.ok(p.y >= 0 && p.y <= v.hz + 2, `${w}x${h}: a "${name}" anchor is off the sky (y=${p.y.toFixed(0)}, sky is 0..${v.hz})`);
+        }
+      }
+    }
+  });
+
+  test(`scene "${scene.id}": draws on every screen size without errors`, () => {
+    for (const [w, h] of SCREENS) {
+      const v = fakeView(scene, w, h);
+      for (const part of ['drawSky', 'drawSkyline', 'drawWater']) {
+        if (!scene[part]) continue;
+        const ctx = fakeContext();
+        scene[part](ctx, v);
+        if (part === 'drawSkyline') assert.ok(ctx.calls.total > 50, `${w}x${h}: the skyline drew almost nothing`);
+      }
+    }
+  });
+
+  test(`scene "${scene.id}": portrait keeps its own framing`, () => {
+    assert.ok(scene.portraitSpan > 200 && scene.portraitSpan < 900, 'portraitSpan says how many scene units fit across a phone');
+    const v = fakeView(scene, 390, 844);
+    assert.ok(v.S > 0.4, 'landmarks would be tiny on a phone');
   });
 }

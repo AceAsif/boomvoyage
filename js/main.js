@@ -159,6 +159,8 @@ function renderScene() {
   $('startPlace').textContent = scene.tagline || `${scene.name}, ${scene.country}.`;
   const index = scenes.indexOf(scene) + 1;
   $('startKicker').textContent = `A fireworks voyage · Stop ${String(index).padStart(2, '0')}`;
+  canvas.setAttribute('aria-label', `Night scene of ${scene.name} with fireworks`);
+  document.title = `BoomVoyage — ${scene.name}`;
   for (const li of $('sceneMenu').querySelectorAll('[role="option"]')) {
     li.setAttribute('aria-selected', String(li.dataset.id === scene.id));
   }
@@ -201,7 +203,7 @@ function buildMenu() {
   const soon = document.createElement('li');
   soon.className = 'soon';
   soon.setAttribute('aria-disabled', 'true');
-  soon.textContent = 'More harbours are on the way';
+  soon.textContent = 'More places are on the way';
   menu.append(soon);
 }
 

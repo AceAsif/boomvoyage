@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>BoomVoyage — fireworks from the world's harbours</title>
-  <meta name="description" content="A fireworks show every two minutes, drawn and sounded live in your browser. First stop: Sydney Harbour.">
+  <title>BoomVoyage — fireworks from the world's waterfronts</title>
+  <meta name="description" content="A fireworks show every two minutes, drawn and sounded live in your browser. Pick a city and watch.">
   <meta name="theme-color" content="#04050f">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2304050f'/%3E%3Cg stroke='%23ffcf8a' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M16 5v6M16 21v6M5 16h6M21 16h6M8.5 8.5l4 4M19.5 19.5l4 4M23.5 8.5l-4 4M12.5 19.5l-4 4'/%3E%3C/g%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <canvas id="stage" role="img" aria-label="Night harbour scene with fireworks"></canvas>
+  <canvas id="stage" role="img" aria-label="Night scene with fireworks"></canvas>
   <div class="vignette" aria-hidden="true"></div>
 
   <div id="ui" class="ui is-hidden">
     <header class="top">
       <div class="brand">
         <span class="brand-name">Boom<em>Voyage</em></span>
-        <span class="brand-tag">Fireworks from the world's harbours</span>
+        <span class="brand-tag">Fireworks from the world's waterfronts</span>
       </div>
 
       <div class="switcher">
@@ -26,7 +26,7 @@
           <span id="sceneLabel">Loading</span>
           <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <ul id="sceneMenu" class="scene-menu" role="listbox" aria-label="Choose a harbour" hidden></ul>
+        <ul id="sceneMenu" class="scene-menu" role="listbox" aria-label="Choose a place" hidden></ul>
       </div>
     </header>
 
@@ -75,9 +75,9 @@
 
   <div id="start" class="start">
     <button id="startBtn" class="start-inner" type="button">
-      <span id="startKicker" class="start-kicker">A fireworks voyage &middot; Stop 01</span>
+      <span id="startKicker" class="start-kicker">A fireworks voyage</span>
       <span class="start-name">Boom<em>Voyage</em></span>
-      <span id="startPlace" class="start-place">Sydney Harbour, tonight and every two minutes.</span>
+      <span id="startPlace" class="start-place">Tonight and every two minutes.</span>
       <span class="start-cta"><span class="ring" aria-hidden="true"></span>Tap to start</span>
       <span id="startNote" class="start-note">Sound is on. You can mute it at any time.</span>
     </button>

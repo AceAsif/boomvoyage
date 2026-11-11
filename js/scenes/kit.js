@@ -57,3 +57,42 @@ export function lamp(ctx, x, y, radius, color, alpha = 1) {
   ctx.fill();
   ctx.globalAlpha = 1;
 }
+
+// A copy of the view that draws everything moved sideways and resized
+// (around the waterline). Scenes use it to re-arrange landmarks for portrait
+// screens, or to draw far-away things smaller.
+export function shifted(v, dx, k = 1) {
+  return { ...v, S: v.S * k, px: (x) => v.px(x * k + dx), py: (y) => v.py(y * k) };
+}
+
+// A soft round glow in the sky, for city haze or a moon behind cloud.
+// `stops` is a list of [position 0..1, colour].
+export function haze(ctx, v, x, y, radius, stops) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  for (const [at, color] of stops) g.addColorStop(at, color);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, v.w, v.hz);
+}
+
+// A small boat on the water with a mast light and its reflection.
+// x is in scene units, depth is 0 (at the waterline) .. 1 (bottom of screen).
+export function boat(ctx, v, x, depth, k = 1, side = '#ff6a5a') {
+  const bx = v.px(x), by = v.hz + (v.h - v.hz) * depth, s = v.S * k * 1.4;
+  ctx.fillStyle = '#04050c';
+  ctx.beginPath();
+  ctx.moveTo(bx - 9 * s, by - 1.6 * s);
+  ctx.lineTo(bx + 10 * s, by - 1.6 * s);
+  ctx.lineTo(bx + 7 * s, by + 0.8 * s);
+  ctx.lineTo(bx - 7 * s, by + 0.8 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillRect(bx - 3 * s, by - 4 * s, 6 * s, 2.6 * s);
+  ctx.fillRect(bx - 0.3 * s, by - 9 * s, 0.6 * s, 5 * s);
+  lamp(ctx, bx, by - 9 * s, Math.max(0.7, 0.6 * s), '#ffe2b0', 0.95);
+  lamp(ctx, bx + 2 * s, by - 2.8 * s, Math.max(0.5, 0.4 * s), side, 0.9);
+  const g = ctx.createLinearGradient(0, by, 0, by + 16 * s);
+  g.addColorStop(0, 'rgba(255,226,176,0.35)');
+  g.addColorStop(1, 'rgba(255,226,176,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(bx - 0.8 * s, by + 1 * s, 1.6 * s, 16 * s);
+}

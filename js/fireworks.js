@@ -42,7 +42,8 @@ export function burst(eng, x, y, spec) {
   const c = css(spec.color ?? GOLD);
   const c2 = css(spec.color2 ?? WHITE);
   const gold = css(GOLD);
-  const n = (k) => Math.max(6, Math.round(k * q * (0.75 + size * 0.25)));
+  const dens = spec.density ?? 1;         // < 1 for many tiny bursts at once
+  const n = (k) => Math.max(6, Math.round(k * q * dens * (0.75 + size * 0.25)));
 
   switch (spec.type) {
     case 'chrys':

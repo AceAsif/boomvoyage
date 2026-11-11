@@ -58,6 +58,8 @@ export class Engine {
     this.P.onDie = (p) => onDeath(this, p);
     this.rockets = [];
     this.falls = [];
+    this.sparkles = [];   // glitter emitters (see fire 'glitter')
+    this.frontUntil = 0;  // front particles may be alive until this time
     this.twinkles = [];
     this.light = { x: 0, y: 0, r: 255, g: 220, b: 180, i: 0 };
     this.listeners = {};
@@ -99,12 +101,13 @@ export class Engine {
     this.P.clear();
     this.rockets.length = 0;
     this.falls.length = 0;
+    this.sparkles.length = 0;
     this.light.i = 0;
     if (this.view) this.wipeFx();
   }
 
   get busy() {
-    return this.P.count > 0 || this.rockets.length > 0 || this.falls.length > 0;
+    return this.P.count > 0 || this.rockets.length > 0 || this.falls.length > 0 || this.sparkles.length > 0;
   }
 
   // ---------- layout ----------
@@ -322,6 +325,13 @@ export class Engine {
       this.pourWaterfall(fall, dt);
     }
 
+    for (let i = this.sparkles.length - 1; i >= 0; i--) {
+      const sp = this.sparkles[i];
+      sp.t += dt;
+      if (sp.t >= sp.dur) { this.sparkles.splice(i, 1); continue; }
+      this.twinkle(sp, dt);
+    }
+
     this.P.update(dt, this.G);
     this.light.i *= Math.pow(0.03, dt);
   }
@@ -411,6 +421,36 @@ export class Engine {
     fx.fillRect(0, 0, w, h);
   }
 
+  // Glitter on a landmark: short-lived points of light at the scene's anchor
+  // points, drawn in FRONT of the skyline. With `pulse` it breathes slowly.
+  twinkle(sp, dt) {
+    const fadeIn = Math.min(1, sp.t / 0.8);
+    const fadeOut = Math.min(1, (sp.dur - sp.t) / 1.2);
+    const wave = sp.pulse ? 0.3 + 0.7 * Math.pow(Math.max(0, Math.sin(sp.t * 2.3)), 2) : 1;
+    sp.acc += 260 * this.q * sp.rate * (this.calm ? 0.5 : 1) * fadeIn * fadeOut * wave * dt;
+    const white = css(WHITE), gold = css(GOLD);
+    while (sp.acc >= 1) {
+      sp.acc -= 1;
+      const p = sp.pts[Math.floor(Math.random() * sp.pts.length)];
+      this.P.add(p.x, p.y, 0, 0, 0.16 + Math.random() * 0.34, Math.random() < 0.7 ? white : gold,
+        { front: true, size: 2 + Math.random() * 1.2, drag: 1, grav: 0, flicker: this.calm ? 0 : 0.4 });
+    }
+    this.frontUntil = this.time + 0.6;
+  }
+
+  // The anchor points a cue asks for: a whole set from the scene's rig, one
+  // level or index of it (`only`), or every `step`-th point.
+  anchors(cue, fallback) {
+    const pts = this.rig[cue.set || fallback];
+    if (!pts || !pts.length) return [];
+    if (cue.only !== undefined) {
+      const byLevel = pts.some((p) => p.level !== undefined);
+      return byLevel ? pts.filter((p) => p.level === cue.only) : [pts[cue.only % pts.length]];
+    }
+    if (cue.step) return pts.filter((p, i) => i % cue.step === (cue.offset || 0));
+    return pts;
+  }
+
   flash(x, y, color, size = 1) {
     const L = this.light;
     const k = Math.min(1, 0.5 + size * 0.3);
@@ -498,6 +538,13 @@ export class Engine {
 
     // Pale surfaces (sails, stone, windows) catch the light of each burst.
     if (!calm && L.i > 0.02 && !skip.has('light')) this.lightLand(ctx, w);
+
+    // The few particles that belong in front of the skyline (glitter).
+    if (this.time < this.frontUntil) {
+      ctx.globalCompositeOperation = 'lighter';
+      this.P.draw(ctx, true);
+      ctx.globalCompositeOperation = 'source-over';
+    }
 
     this.renderWater(ctx, w, h, hz, dpr);
   }
@@ -590,13 +637,35 @@ export class Engine {
           this.emit('waterfall', { x: (pts[0].x + pts[pts.length - 1].x) / 2, dur: cue.dur ?? 8 });
         }
         break;
-      case 'crown':
-        if (this.rig.crown) {
-          for (const p of this.rig.crown) comet(this, p.x, p.y, p.angle, (cue.speed ?? 0.5) * this.U, cue.color ?? GOLD, 1.1);
-          this.emit('launch', { x: v.w / 2, dur: 0.6, whistle: false });
-          this.emit('burst', { x: v.w / 2, size: 0.5, type: 'mine' });
+      case 'crown': {
+        // Comets from a set of anchor points (by default the "crown" set).
+        const pts = this.anchors(cue, 'crown');
+        if (pts.length) {
+          for (const p of pts) comet(this, p.x, p.y, p.angle ?? 0, (cue.speed ?? 0.5) * this.U, cue.color ?? GOLD, 1.1);
+          const cx = cue.set ? pts.reduce((sum, p) => sum + p.x, 0) / pts.length : v.w / 2;
+          this.emit('launch', { x: cx, dur: 0.6, whistle: false });
+          this.emit('burst', { x: cx, size: 0.5, type: 'mine' });
         }
         break;
+      }
+      case 'at': {
+        // Small bursts right at anchor points (no rocket).
+        const pts = this.anchors(cue);
+        for (const p of pts) {
+          burst(this, p.x, p.y, { type: cue.type, color: cue.color, color2: cue.color2, size: cue.size ?? 0.3, density: cue.density ?? 0.3 });
+        }
+        if (pts.length === 1) this.emit('pop', { x: pts[0].x });
+        else if (pts.length) this.emit('burst', { x: pts.reduce((sum, p) => sum + p.x, 0) / pts.length, size: 0.6, type: cue.type });
+        break;
+      }
+      case 'glitter': {
+        const pts = this.rig[cue.set];
+        if (pts && pts.length) {
+          this.sparkles.push({ t: 0, dur: cue.dur ?? 8, acc: 0, pts, rate: cue.rate ?? 1, pulse: !!cue.pulse });
+          this.emit('waterfall', { x: pts.reduce((sum, p) => sum + p.x, 0) / pts.length, dur: cue.dur ?? 8 });
+        }
+        break;
+      }
     }
   }
 

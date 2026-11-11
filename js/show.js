@@ -110,6 +110,94 @@ function sparkle(c, t) {
 
 export const MOVEMENTS = { chase, mirror, fans, willows, garden, crossfire, sparkle };
 
+// ---------- more acts, for scenes that ask for them ----------
+// A scene lists the acts it wants in `show.acts`. Scenes that do not (Sydney)
+// use the seven acts above, so their shows stay exactly as they were.
+
+// Rows of jets that rise and cross like a dancing fountain.
+function fountain(c, t) {
+  const posts = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+  posts.forEach((x, i) => {
+    const u = i / (posts.length - 1);
+    c.add(t + i * 0.07, 'comet', { x, angle: 0, speed: 0.62 + 0.3 * Math.sin(Math.PI * u), color: c.col(0) });
+    c.add(t + 1.1 + (posts.length - 1 - i) * 0.07, 'comet', { x, angle: i % 2 ? 0.26 : -0.26, speed: 0.8, color: c.col(1) });
+    c.add(t + 2.2, 'comet', { x, angle: (0.5 - u) * 0.9, speed: 0.92, color: c.col(2) });
+  });
+  [0.1, 0.3, 0.5, 0.7, 0.9].forEach((x, i) => c.add(t + 2.25, 'mine', { x, color: c.col(i), size: 0.8 }));
+  [0.42, 0.5, 0.58].forEach((x) => c.add(t + 3.2, 'comet', { x, angle: 0, speed: 1.12, color: c.col(0) }));
+  c.shell(t + 3.0, 0.28, 0.7, 'palm', { size: 1.05 });
+  c.shell(t + 3.0, 0.72, 0.7, 'palm', { size: 1.05 });
+  return 5;
+}
+
+// A grove of palm bursts, left to right, with one tall palm to close.
+function palms(c, t) {
+  [0.16, 0.33, 0.5, 0.67, 0.84].forEach((x, i) => {
+    c.shell(t + i * 0.45, x, 0.52 + (i % 2) * 0.12, 'palm', { size: 1.05, color: c.col(i) });
+  });
+  c.shell(t + 2.6, 0.33, 0.82, 'crackle', { size: 0.9 });
+  c.shell(t + 2.9, 0.67, 0.82, 'crackle', { size: 0.9 });
+  c.shell(t + 3.4, 0.5, 0.92, 'palm', { size: 1.35, whistle: true });
+  return 5.2;
+}
+
+// Three-four time: one large ring, then two small steps, four bars.
+function waltz(c, t) {
+  const beat = 0.48;
+  [0.3, 0.7, 0.4, 0.6].forEach((x, bar) => {
+    const at = t + bar * beat * 3;
+    c.shell(at, x, 0.74, bar % 2 ? 'saturn' : 'ring', { size: 1.15, color: c.col(bar), color2: c.col(bar + 1) });
+    c.shell(at + beat, x - 0.14, 0.46, 'peony', { size: 0.6, color: c.col(bar + 1) });
+    c.shell(at + beat * 2, x + 0.14, 0.46, 'peony', { size: 0.6, color: c.col(bar + 1) });
+  });
+  return 6;
+}
+
+// Four slow, heavy strikes like a great bell, each with a crackling echo.
+function chimes(c, t) {
+  const xs = [0.5, 0.36, 0.64, 0.5];
+  const hs = [0.8, 0.66, 0.66, 0.88];
+  for (let i = 0; i < 4; i++) {
+    c.shell(t + i * 1.25, xs[i], hs[i], 'chrys', { size: 1.35, color: c.col(i) });
+    c.shell(t + i * 1.25 + 0.5, xs[i] + (i % 2 ? 0.12 : -0.12), 0.34, 'crackle', { size: 0.7 });
+  }
+  return 5.8;
+}
+
+export const EXTRA_MOVEMENTS = { fountain, palms, waltz, chimes };
+const ALL_MOVEMENTS = { ...MOVEMENTS, ...EXTRA_MOVEMENTS };
+
+// ---------- other openings (a scene picks one with `show.opening`) ----------
+
+// One huge gold shell first, then jets and palms: an entrance for a tower.
+function openingTower(c, t) {
+  c.shell(t, 0.5, 0.95, 'kamuro', { size: 1.4, whistle: true });
+  [0.14, 0.32, 0.5, 0.68, 0.86].forEach((x) => c.add(t + 1.6, 'comet', { x, angle: 0, speed: 0.9, color: c.col(0) }));
+  c.shell(t + 2.4, 0.25, 0.6, 'palm');
+  c.shell(t + 2.4, 0.75, 0.6, 'palm');
+  c.shell(t + 3.3, 0.5, 0.8, 'saturn', { size: 1.2 });
+  return 4.5;
+}
+
+// Two willows together, a ring between them, then a pair of small peonies.
+function openingDuet(c, t) {
+  c.shell(t, 0.38, 0.78, 'willow', { size: 1.1, whistle: true });
+  c.shell(t + 0.5, 0.62, 0.78, 'willow', { size: 1.1 });
+  c.shell(t + 2.0, 0.5, 0.9, 'ring', { size: 1.3 });
+  c.shell(t + 3.1, 0.3, 0.6, 'peony');
+  c.shell(t + 3.1, 0.7, 0.6, 'peony');
+  return 4.5;
+}
+
+// Three slow strikes in the middle of the sky, then a crossette.
+function openingStrikes(c, t) {
+  [0, 1.3, 2.6].forEach((dt, i) => c.shell(t + dt, 0.5, 0.82 + (i === 2 ? 0.06 : 0), 'chrys', { size: 1.3, color: c.col(i), whistle: i === 0 }));
+  c.shell(t + 3.4, 0.5, 0.62, 'crossette', { size: 1.1 });
+  return 4.5;
+}
+
+const OPENINGS = { classic: opening, tower: openingTower, duet: openingDuet, strikes: openingStrikes };
+
 // The quiet act: a curtain of sparks from the scene's waterfall line
 // (in Sydney, the bridge deck), with slow white shells floating above it.
 function waterfallAct(c, t) {
@@ -125,9 +213,62 @@ function waterfallAct(c, t) {
   return 9.4;
 }
 
+// ---------- signature acts ----------
+// A scene without a waterfall can name one of these with `show.signature`.
+// Each one plays on anchor points the scene gives in its rig() (see
+// SIGNATURE_RIG), so the effect sits on the scene's own landmark.
+
+// Sparks climb a tower tier by tier, then fan out from its spire.
+function spire(c, t) {
+  for (let pass = 0; pass < 2; pass++) {
+    for (let level = 0; level < 6; level++) {
+      c.add(t + pass * 2.2 + level * 0.3, 'crown', { set: 'tiers', only: level, speed: 0.13 + 0.012 * level, color: c.col(pass) });
+    }
+  }
+  c.add(t + 1.0, 'glitter', { set: 'facade', dur: 7.6, rate: 0.5 });
+  c.add(t + 4.6, 'crown', { set: 'tiers', speed: 0.18, color: c.col(2) });
+  for (let k = 0; k < 4; k++) c.add(t + 5.3 + k * 0.75, 'crown', { set: 'spire', speed: 0.3 + 0.07 * k, color: c.col(k) });
+  c.shell(t + 5.6, 0.5, 0.98, 'strobe', { size: 1.2 });
+  c.shell(t + 7.4, 0.5, 0.98, 'kamuro', { size: 1.3 });
+  return 9.4;
+}
+
+// A tower twinkles in slow pulses while gold willows open beside it.
+function glitter(c, t) {
+  c.add(t, 'glitter', { set: 'tower', dur: 8.6, rate: 1, pulse: true });
+  c.shell(t + 1.4, 0.2, 0.8, 'willow', { size: 1.1 });
+  c.shell(t + 2.6, 0.8, 0.8, 'willow', { size: 1.1 });
+  c.shell(t + 4.6, 0.28, 0.88, 'kamuro', { size: 1.1 });
+  c.shell(t + 5.4, 0.72, 0.88, 'kamuro', { size: 1.1 });
+  c.add(t + 6.8, 'crown', { set: 'top', speed: 0.22, color: c.col(0) });
+  c.add(t + 7.6, 'crown', { set: 'top', speed: 0.3, color: c.col(1) });
+  return 9.4;
+}
+
+// Small bursts run around a great wheel, then the whole rim fires at once.
+function wheel(c, t) {
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    c.add(t + i * 0.11, 'at', { set: 'wheel', only: i, type: 'peony', size: 0.3, color: c.col(0) });
+    c.add(t + 2.1 + i * 0.09, 'at', { set: 'wheel', only: n - 1 - i, type: 'ring', size: 0.34, color: c.col(1) });
+  }
+  c.add(t + 3.9, 'at', { set: 'wheel', step: 2, offset: 0, type: 'peony', size: 0.34, color: c.col(2) });
+  c.add(t + 4.4, 'at', { set: 'wheel', step: 2, offset: 1, type: 'peony', size: 0.34, color: c.col(0) });
+  c.add(t + 5.0, 'at', { set: 'wheel', type: 'ring', size: 0.36, color: c.col(1) });
+  c.add(t + 5.8, 'crown', { set: 'hub', speed: 0.16, color: c.col(0) });
+  c.shell(t + 6.2, 0.5, 0.92, 'saturn', { size: 1.3 });
+  c.add(t + 6.6, 'crown', { set: 'hub', speed: 0.2, color: c.col(1) });
+  c.add(t + 7.6, 'at', { set: 'wheel', type: 'chrys', size: 0.42, color: c.col(2) });
+  return 9.4;
+}
+
+export const SIGNATURES = { spire, glitter, wheel };
+// The rig() anchor sets each signature act needs from its scene.
+export const SIGNATURE_RIG = { spire: ['tiers', 'spire'], glitter: ['tower', 'top'], wheel: ['wheel', 'hub'] };
+
 // Faster and faster, then gold across the whole sky, then one last shell.
 function finale(c, t, seconds) {
-  const types = ['peony', 'chrys', 'ring', 'saturn', 'palm', 'crackle', 'peony', 'crossette'];
+  const types = c.finaleTypes || ['peony', 'chrys', 'ring', 'saturn', 'palm', 'crackle', 'peony', 'crossette'];
   const fastest = c.calm ? 0.34 : 0.11;
   let gap = 0.42;
   let i = 0;
@@ -156,7 +297,14 @@ export const ACT_LABELS = {
   garden: 'Garden',
   crossfire: 'Crossfire',
   sparkle: 'Sparkle',
+  fountain: 'Fountain',
+  palms: 'Palms',
+  waltz: 'Waltz',
+  chimes: 'Chimes',
   waterfall: 'Waterfall',
+  spire: 'The Spire',
+  glitter: 'Glitter',
+  wheel: 'The Wheel',
   finale: 'Finale',
 };
 
@@ -172,6 +320,8 @@ export function actAt(show, elapsed) {
 
 // ---------- builder ----------
 
+// Optional flavour a scene can put in cfg: acts (which middle acts may be
+// picked), opening, signature, finaleTypes, actLabels.
 // cfg: the `show` object of a scene. opts.calm: gentler show (reduced motion).
 // opts.avoid: a palette name not to use (so two shows in a row look different).
 // opts.theme: a palette id (see slugify) to use instead of the random pick. The
@@ -190,6 +340,7 @@ export function buildShow(cfg, seed, opts = {}) {
   const c = {
     r, calm,
     features: cfg.features || {},
+    finaleTypes: cfg.finaleTypes,
     col: (i) => (i === undefined ? pick(r, theme.colors) : theme.colors[i % theme.colors.length]),
     shell(t, x, h, type, o = {}) {
       if (calm && type === 'strobe') type = 'chrys';   // no flicker
@@ -217,10 +368,16 @@ export function buildShow(cfg, seed, opts = {}) {
     t += length;
   };
 
-  run('opening', () => opening(c, t));
-  const names = shuffle(r, Object.keys(MOVEMENTS)).slice(0, cfg.movements ?? 3);
-  for (const name of names) run(name, () => MOVEMENTS[name](c, t), 0.5);
+  const open = OPENINGS[cfg.opening] || opening;
+  run('opening', () => open(c, t));
+  // A scene may list its own acts; without a list the seven classic ones are used.
+  const pool = cfg.acts ? cfg.acts.filter((key) => ALL_MOVEMENTS[key]) : Object.keys(MOVEMENTS);
+  const names = shuffle(r, pool).slice(0, cfg.movements ?? 3);
+  for (const name of names) run(name, () => ALL_MOVEMENTS[name](c, t), 0.5);
+  // The quiet middle: the waterfall, or the scene's own signature act.
+  const signature = SIGNATURES[cfg.signature];
   if (c.features.waterfall) run('waterfall', () => waterfallAct(c, t), 0.3);
+  else if (signature) run(cfg.signature, () => signature(c, t), 0.3);
   run('finale', () => finale(c, t, cfg.finaleSeconds ?? 8));
   timeline.forEach((act, i) => { act.index = i + 1; });
 

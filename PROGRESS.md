@@ -15,6 +15,8 @@ Last updated: 2026-11-11
   Bug found and fixed here: glitter particles were not drawn at all (a line of no length draws nothing). `js/particles.js` now draws front particles as small glints. This also fixed the facade glitter in Dubai's signature act.
   Screenshots looked at: Chrome 1600x815, 390x844, close-up of the glitter; Firefox 360x740, 844x390, 768x1024, 1024x768.
   Speed, same test as Dubai: Firefox 160 about 101 fps (typical 7.0 ms, slow 13.9 ms, worst 13.9 ms; layer at 80%), Chrome 157 144 fps (typical 6.9 ms, slow 7.0 ms; layer at 100%).
+  Screenshots looked at: Chrome 1600x815 and 390x844 (idle and signature); Firefox 844x390 and 768x1024 (bursts); 360x740 and 1024x768 were taken and passed the layout tests.
+  Speed, same test: Firefox 160 about 102 fps (typical 7.0 ms, slow 13.9 ms, worst 13.9 ms; layer at 80%), Chrome 157 144 fps (typical 6.9 ms, slow 7.0 ms; layer at 100%).
 
 ## In progress
 - nothing

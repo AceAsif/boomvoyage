@@ -460,6 +460,11 @@ body.ambient #stage { cursor: none; }
   #fsBtn { grid-column: 3; grid-row: 2; }
   .pill { padding: 0 16px; letter-spacing: 0.14em; }
   .scene-btn { padding: 0 13px; font-size: 12px; }
+  /* On a narrow phone the harbour name may shorten with "…" instead of leaving the screen. */
+  .brand { flex: none; }
+  .switcher { min-width: 0; }
+  .scene-btn { max-width: 100%; }
+  #sceneLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .scene-menu { min-width: 216px; }
 }
 @media (max-width: 380px) {

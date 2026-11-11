@@ -33,12 +33,13 @@ Last updated: 2026-11-11
   | Chrome after (layer stays 100%) | 144 | 6.9 ms | 7.0 ms | 7.1 ms |
 
   Also tried and NOT kept: fewer subtract passes (small gain, one 35 ms hitch), a software-only trail canvas (no gain). Trails still end in true black: 0 lit pixels 5 s after a burst. Real-browser screenshots (Chrome before, Chrome after, Firefox after, 1600x815 at pixel ratio 1.5) look the same.
+- Step 3: Phone bridge waterfall. Cause: the fireworks are drawn behind the skyline, and in portrait the Opera House stands in front of the left half of the bridge deck, so half of the deck waterfall was hidden. Fix in `js/scenes/sydney.js` (`rig()`): in portrait the curtain hangs from the arch (its lower curve, 25 points) across the whole bridge; its top edge is above the Opera House roofs everywhere, and the sparks fall behind the sails. Wide screens keep the deck waterfall. `js/engine.js`: a scene can ask for a denser curtain (`waterfallDensity`, 1.5 in portrait). New `tests/sydney.test.js` (3 tests). Also fixed in `css/style.css`: at 360 px wide the harbour button could leave the screen; its text now shortens instead. 75/75 pass.
+  Looked at real-browser screenshots: 390x844 and 360x740 (Chrome and Firefox), 844x390 and 1600x815 (Chrome).
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 3: Phone portrait: the bridge waterfall looks cut in half next to the Opera House. Make it read as one whole curtain.
 - Step 4: Test 390x844, 360x740, phone landscape, desktop (screenshots), README.
 
 ## Decisions

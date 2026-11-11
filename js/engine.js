@@ -332,7 +332,7 @@ export class Engine {
     const pts = fall.pts;
     const spread = Math.min(1, fall.t / 1.6);
     const ending = Math.min(1, (fall.dur - fall.t) / 1.5);
-    fall.acc += 430 * this.q * ending * (0.3 + 0.7 * spread) * dt;
+    fall.acc += 430 * (this.rig.waterfallDensity ?? 1) * this.q * ending * (0.3 + 0.7 * spread) * dt;
     const white = css(WHITE), gold = css(GOLD);
     const S = this.view.S;
     while (fall.acc >= 1) {

@@ -81,6 +81,13 @@ mouse pointer is hidden. **Tap or click anywhere, or press `Esc`, to leave.**
   breaks, but the screen may dim; then set a longer screen timeout in the
   device settings. The lock is let go when you leave ambient mode.
 
+### Hear the life sounds
+
+With `?debug=1` in the address, press `1` (horn), `2` (water) or `3`
+(chime) to hear a life sound at once, in the place you are in. A small
+message names the sound, or says why it did not play (muted, or two are
+already playing).
+
 ### Check the speed
 
 Open the page with `?debug=1` and start a show. A small green box shows, for
@@ -117,7 +124,7 @@ Nothing to install.
 node --test
 ```
 
-There are 169 tests in `tests/`:
+There are 181 tests in `tests/`:
 
 - `schedule.test.js` — the 2-minute timing (background tabs, slow timers, "Launch now", the `m:ss` text).
 - `show.test.js` — the show builder (same seed = same show, shows differ, missed cues are skipped, act names and their timing, same seed + theme = same show for share links).
@@ -137,6 +144,9 @@ There are 169 tests in `tests/`:
   more than two things at once, the same seed gives the same life, 10 to 25
   seconds between events, everything fades before the next show, a hidden tab
   pauses it, and the fireworks are exactly the same with and without it.
+- `lifesound.test.js` — the quiet life sounds: each starts and ends silent,
+  only fades (no jumps), every tone and noise is stopped, never more than two
+  at once, the horn is loud and high enough to hear, and every city has one.
 - `scenes.test.js` also checks each place's life events: every one draws on
   every screen size, in both directions, with and without reduce motion.
 - `dubai.test.js`, `paris.test.js`, `london.test.js` — each city's own names,
@@ -169,6 +179,7 @@ js/life.js              life between shows: when the small events start and end 
 js/link.js              link options: reading ?scene= ?seed= ?theme= ?ambient=, building share links
 js/schedule.js          the 2-minute schedule (pure logic)
 js/audio.js             Web Audio sound engine and mute memory
+js/lifesound.js         the quiet life sounds (horn, water, chime) as plans, and the two-at-once limit
 js/wakelock.js          keeps the screen awake in ambient mode
 js/stats.js             frame-rate numbers for the ?debug=1 meter (pure logic)
 js/quality.js           automatic quality: shrinks the fireworks layer only if the browser is behind (pure logic)
@@ -371,6 +382,14 @@ changing the place feels like travelling and not like changing a wallpaper.
   - **London:** a river bus crosses the Thames; a small tug works upstream;
     brighter lights travel slowly round the wheel; the clock face glows like
     a slow breath; a second red bus crosses Westminster Bridge.
+- **Life sounds are planned, then played.** Each one is written down as
+  plain numbers first (which tones, when, how the volume moves) and only then
+  built with audio nodes. Every volume starts at zero, moves only in fades of
+  30 ms or more and ends at zero, and every tone is stopped right after. At
+  most two play at once, and they fade out in a third of a second when a show
+  begins. This came from a real bug: the first water sound let raw noise
+  through at full volume for a second or two before its fade began, and the
+  first horn was so low and soft that nobody could hear it.
 - **Life has its own dice.** Life events use their own random numbers, apart
   from the fireworks. A shared link still plays exactly the same show; only
   the small things around it differ, as they would on two real evenings.

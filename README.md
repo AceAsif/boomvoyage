@@ -38,6 +38,7 @@ Add these to the address of the page (after a `?`, joined with `&`).
 | `seed` | `?seed=3735928559` | The first show is this exact show: same acts, same timing. A whole number from 0 to 4294967295. |
 | `theme` | `?theme=ember-jade` | Uses that colour theme for the shared show. It is the theme name in lower case with dashes, for example `harbour-blue`. |
 | `ambient` | `?ambient=1` | Starts in ambient (TV) mode. Also works with `true`, `yes`, `on`. Use `0` for off. |
+| `debug` | `?debug=1` | Shows a small frame-rate meter (see "Check the speed" below). |
 
 Example: `https://<your-user-name>.github.io/boomvoyage/?scene=sydney&seed=1532556838&theme=harbour-blue`
 
@@ -66,6 +67,20 @@ mouse pointer is hidden. **Tap or click anywhere, or press `Esc`, to leave.**
   breaks, but the screen may dim; then set a longer screen timeout in the
   device settings. The lock is let go when you leave ambient mode.
 
+### Check the speed
+
+Open the page with `?debug=1` and start a show. A small green box shows, for
+the last ten seconds:
+
+- **fps**: frames per second (higher is better; 60 or more is smooth).
+- **typical**: the usual time for one frame in milliseconds (16.7 ms = 60 fps).
+- **slow**: 95% of the frames are faster than this. This is what you feel as lag.
+- **worst**: the slowest single frame.
+- the number of sparks, the canvas size, the screen's pixel ratio, and the
+  size and quality step of the fireworks layer.
+
+If a browser feels slow, these numbers (best read during the finale) say how slow.
+
 ## Run it
 
 The page uses JavaScript modules, so it needs a small local web server.
@@ -88,13 +103,16 @@ Nothing to install.
 node --test
 ```
 
-There are 54 tests in `tests/`:
+There are 75 tests in `tests/`:
 
 - `schedule.test.js` — the 2-minute timing (background tabs, slow timers, "Launch now", the `m:ss` text).
 - `show.test.js` — the show builder (same seed = same show, shows differ, missed cues are skipped, act names and their timing, same seed + theme = same show for share links).
 - `scenes.test.js` — every scene file has what the engine needs.
 - `link.test.js` — reading and building link options.
 - `wakelock.test.js` — keeping the screen awake (API, fallback, tab hidden and shown again).
+- `stats.test.js` — the frame-rate numbers of the `?debug=1` meter.
+- `quality.test.js` — the automatic quality steps (when to make the fireworks layer smaller, and when not).
+- `sydney.test.js` — where the bridge waterfall hangs on wide and on portrait screens.
 
 ## Deploy to GitHub Pages
 
@@ -123,6 +141,8 @@ js/link.js              link options: reading ?scene= ?seed= ?theme= ?ambient=, 
 js/schedule.js          the 2-minute schedule (pure logic)
 js/audio.js             Web Audio sound engine and mute memory
 js/wakelock.js          keeps the screen awake in ambient mode
+js/stats.js             frame-rate numbers for the ?debug=1 meter (pure logic)
+js/quality.js           automatic quality: shrinks the fireworks layer only if the browser is behind (pure logic)
 js/scenes/index.js      list of scenes
 js/scenes/sydney.js     the Sydney Harbour scene
 js/scenes/kit.js        small drawing helpers any scene can use
@@ -189,6 +209,11 @@ so one drawing fits every screen size.
   sits in front of its left side, and the city is a small far-away row
   behind the sails. Nothing is cut off, and about four fifths of the sky is
   left for the fireworks, which are drawn bigger and burst higher there.
+- **The waterfall on a phone.** On wide screens the waterfall pours from the
+  bridge deck, as in the real show. In portrait the Opera House stands in
+  front of the left half of the deck and would hide half of it. So there
+  the curtain hangs from the arch: its whole top edge is in view above the
+  sails, and the sparks fall behind the Opera House like a lit backdrop.
 - **Typography.** A high-contrast serif in italic (Bodoni / Didot family) for
   the name and the numbers, like an old travel poster, and small wide-spaced
   capitals for labels. These are system fonts, so no font file is downloaded.
@@ -255,5 +280,20 @@ so one drawing fits every screen size.
   number (its seed) plus its colour theme, so a link only needs those. The
   theme is in the link because a show avoids the previous show's colours,
   which the person opening the link has not seen.
+- **Fast in every browser, measured.** Firefox ran the finale at about
+  21 frames per second where Chrome ran 144 (same machine, 1600 px wide
+  window, pixel ratio 1.5). Switching drawing parts off one at a time showed
+  the cause: tinting the skyline with the burst colour every frame used
+  blend modes that Firefox does not run on the graphics card. Now the
+  skyline is split once into a red, a green and a blue picture, and each
+  frame only adds the three with the strength of the burst colour: the same
+  picture for a fraction of the cost. The second cost was the size of the
+  fireworks layer on high-DPI screens.
+- **Automatic quality, no browser names.** While fireworks are in the air
+  the page watches its real frame times. Only if the browser is clearly
+  behind does the fireworks layer get smaller (100%, then 80%, then 67%),
+  copied across so nothing blinks. It never goes back up. Chrome keeps 100%.
+  With both changes Firefox went from about 21 to about 92 frames per
+  second in the same test, and Chrome stayed at 144.
 - **Reduced motion.** With that system setting on, shows are slower and
   sparser, there is no strobe and no white flash, and the water is still.

@@ -35,12 +35,13 @@ Last updated: 2026-11-11
   Also tried and NOT kept: fewer subtract passes (small gain, one 35 ms hitch), a software-only trail canvas (no gain). Trails still end in true black: 0 lit pixels 5 s after a burst. Real-browser screenshots (Chrome before, Chrome after, Firefox after, 1600x815 at pixel ratio 1.5) look the same.
 - Step 3: Phone bridge waterfall. Cause: the fireworks are drawn behind the skyline, and in portrait the Opera House stands in front of the left half of the bridge deck, so half of the deck waterfall was hidden. Fix in `js/scenes/sydney.js` (`rig()`): in portrait the curtain hangs from the arch (its lower curve, 25 points) across the whole bridge; its top edge is above the Opera House roofs everywhere, and the sparks fall behind the sails. Wide screens keep the deck waterfall. `js/engine.js`: a scene can ask for a denser curtain (`waterfallDensity`, 1.5 in portrait). New `tests/sydney.test.js` (3 tests). Also fixed in `css/style.css`: at 360 px wide the harbour button could leave the screen; its text now shortens instead. 75/75 pass.
   Looked at real-browser screenshots: 390x844 and 360x740 (Chrome and Firefox), 844x390 and 1600x815 (Chrome).
+- Step 4: README (the `debug` link option, "Check the speed", tests list, file map, waterfall on a phone, speed notes).
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 4: Test 390x844, 360x740, phone landscape, desktop (screenshots), README.
+- All steps are done. The user opens the Pull Request from `fix/firefox-and-phone-bridge` into `main` and merges it.
 
 ## Decisions
 - No browser-name check anywhere. The quality step is decided from measured frame times, so it also helps slow phones and does nothing on fast machines.
@@ -49,4 +50,6 @@ Last updated: 2026-11-11
 - Measuring was done in the real installed Firefox and Chrome with temporary profiles (the user's own profiles were not touched).
 
 ## Problems / questions for the user
-- none
+- Measured on one machine only (the user's PC: 144 Hz screen, pixel ratio 1.5). Please open the deployed site in Firefox with `?debug=1` after merging and report the numbers during the finale if it still feels slow.
+- Phone sizes were checked in desktop Chrome and Firefox set to phone sizes, not on a real phone.
+- With reduced motion the skyline light is off (as before), so that path was not part of the Firefox problem.

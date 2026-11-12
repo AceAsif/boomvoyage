@@ -237,7 +237,10 @@ function drawBridge(ctx, v) {
 // Far things are drawn smaller on a phone, so they stay inside the screen.
 const cityView = (v) => (v.portrait ? shifted(v, 0, 0.62) : v);
 
-function drawSkyline(ctx, v) {
+// The skyline is drawn in two halves, so that life events can pass between
+// them (birds cross behind the tower).
+// Backdrop: the city, Montmartre, the dome, the trees and the river wall.
+function drawBackdrop(ctx, v) {
   const X = v.px, Y = v.py, S = v.S;
   const c = cityView(v);
 
@@ -264,9 +267,17 @@ function drawSkyline(ctx, v) {
   ctx.fillStyle = wall;
   ctx.fillRect(0, Y(QUAY), v.w, QUAY * S + 1);
   for (let x = -640; x < 700; x += 16) lamp(ctx, X(x), Y(QUAY + 2.5), Math.max(0.5, 0.5 * S), WARM, 0.85);
+}
 
+// Foreground: the tower and the bridge.
+function drawForeground(ctx, v) {
   drawTower(ctx, v);
   drawBridge(ctx, v);
+}
+
+function drawSkyline(ctx, v) {
+  drawBackdrop(ctx, v);
+  drawForeground(ctx, v);
 }
 
 function drawSky(ctx, v) {
@@ -353,7 +364,7 @@ function rig(v) {
 const life = [
   {
     // A long sightseeing boat, all windows lit, crossing under the bridge.
-    id: 'bateau', group: 'water', layer: 'water', weight: 2, duration: [26, 34], sound: 'horn',
+    id: 'bateau', group: 'water', layer: 'front', weight: 2, duration: [26, 34], sound: 'horn',
     setup: (r) => ({ depth: 0.08 + r() * 0.12 }),
     draw(ctx, v, e) {
       const s = v.S * (1.4 + e.p.depth * 2.4);
@@ -364,7 +375,7 @@ const life = [
   },
   {
     // A small boat with one lantern, drifting a short way downstream.
-    id: 'barque', group: 'water', layer: 'water', duration: [18, 26], sound: 'water',
+    id: 'barque', group: 'water', layer: 'front', duration: [18, 26], sound: 'water',
     setup: (r) => ({ depth: 0.45 + r() * 0.2, from: 0.12 + r() * 0.45 }),
     draw(ctx, v, e) {
       const s = v.S * (1.2 + e.p.depth * 2);
@@ -376,7 +387,7 @@ const life = [
     // A soft sparkle on the iron: a few dozen small lights coming and going.
     // This is our own simple effect, much quieter than the fireworks act.
     // With reduce motion the lights stay on and do not twinkle.
-    id: 'sparkle', group: 'lights', layer: 'land', duration: [12, 18], sound: 'chime',
+    id: 'sparkle', group: 'lights', layer: 'front', duration: [12, 18], sound: 'chime',
     setup: (r) => {
       const points = [];
       while (points.length < 44) {
@@ -397,7 +408,7 @@ const life = [
   },
   {
     // A few birds crossing the evening sky (they glide with reduce motion).
-    id: 'birds', layer: 'sky', duration: [16, 22],
+    id: 'birds', layer: 'behind', duration: [16, 22],
     setup: (r) => ({
       y: 0.34 + r() * 0.3, drift: (r() - 0.5) * 0.1,
       flock: Array.from({ length: 5 + Math.floor(r() * 3) }, (_, i) => ({ dx: -i * 8 - r() * 5, dy: (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 3.5 + r() * 2.5, phase: r() * 6.3 })),
@@ -422,7 +433,7 @@ const life = [
   },
   {
     // A thin rose cloud drifting slowly, high up.
-    id: 'cloud', layer: 'sky', duration: [20, 28],
+    id: 'cloud', layer: 'behind', duration: [20, 28],
     setup: (r) => ({ y: 0.14 + r() * 0.3, from: 0.2 + r() * 0.4, size: 0.16 + r() * 0.1 }),
     draw(ctx, v, e) {
       const rx = Math.max(110, v.w * e.p.size);
@@ -463,6 +474,8 @@ export default {
 
   drawSky,
   drawSkyline,
+  drawBackdrop,
+  drawForeground,
   drawWater,
   rig,
   life,

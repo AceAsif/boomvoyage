@@ -225,7 +225,10 @@ function drawCity(ctx, v) {
 
 const cityView = (v) => (v.portrait ? shifted(v, 0, 0.45) : v);
 
-function drawSkyline(ctx, v) {
+// The skyline is drawn in two halves, so that life events can pass between
+// them (a plane crosses behind the tower).
+// Backdrop: the other towers and the mall.
+function drawBackdrop(ctx, v) {
   const X = v.px, Y = v.py, S = v.S;
   drawCity(ctx, cityView(v));
 
@@ -236,9 +239,17 @@ function drawSkyline(ctx, v) {
   ctx.fillStyle = g;
   ctx.fillRect(0, Y(9), v.w, 9 * S + 1);
   for (let x = -520; x < 520; x += 5.5) lamp(ctx, X(x), Y(4.5), Math.max(0.5, 0.45 * S), WARM, 0.75);
+}
 
+// Foreground: the Burj Khalifa and the palms on the promenade.
+function drawForeground(ctx, v) {
   drawBurj(ctx, v);
   for (const x of [-210, -176, -150, -74, -52, 50, 72, 118, 168, 204, 236]) palm(ctx, v, x, 13 + ((x * 7) % 5 + 5) % 5);
+}
+
+function drawSkyline(ctx, v) {
+  drawBackdrop(ctx, v);
+  drawForeground(ctx, v);
 }
 
 function drawSky(ctx, v) {
@@ -310,7 +321,7 @@ function rig(v) {
 const life = [
   {
     // A wooden dhow with a lantern-lit sail, gliding across the lake.
-    id: 'dhow', group: 'water', layer: 'water', weight: 2, duration: [24, 32], sound: 'water',
+    id: 'dhow', group: 'water', layer: 'front', weight: 2, duration: [24, 32], sound: 'water',
     setup: (r) => ({ depth: 0.14 + r() * 0.2 }),
     draw(ctx, v, e) {
       const s = v.S * (1.5 + e.p.depth * 2.4);
@@ -321,7 +332,7 @@ const life = [
   },
   {
     // An abra (water taxi) pottering a short way along the shore.
-    id: 'abra', group: 'water', layer: 'water', duration: [18, 26], sound: 'horn',
+    id: 'abra', group: 'water', layer: 'front', duration: [18, 26], sound: 'horn',
     setup: (r) => ({ depth: 0.05 + r() * 0.08, from: 0.12 + r() * 0.45 }),
     draw(ctx, v, e) {
       const s = v.S * (1.3 + e.p.depth * 2);
@@ -334,7 +345,7 @@ const life = [
   {
     // A plane on its way out of the airport: a steady white light, a red
     // wing light and a strobe that blinks (no blinking with reduce motion).
-    id: 'plane', layer: 'sky', duration: [18, 24],
+    id: 'plane', layer: 'behind', duration: [18, 24],
     setup: (r) => ({ y: 0.1 + r() * 0.2, climb: 0.03 + r() * 0.07, phase: r() * 3 }),
     draw(ctx, v, e) {
       const x = crossing(v, e, 20);
@@ -350,7 +361,7 @@ const life = [
   {
     // A band of light climbing the Burj Khalifa, from the plaza to the spire.
     // With reduce motion the whole tower glows softly instead.
-    id: 'pulse', group: 'lights', layer: 'land', duration: [10, 14],
+    id: 'pulse', group: 'lights', layer: 'front', duration: [10, 14],
     draw(ctx, v, e) {
       const head = -30 + e.u * (TIP + 70);
       ctx.fillStyle = '#d6ecff';
@@ -367,7 +378,7 @@ const life = [
   },
   {
     // The fountain on the lake practising: a row of thin white jets swaying.
-    id: 'fountain', group: 'lights', layer: 'water', duration: [11, 16], sound: 'water', calm: false,
+    id: 'fountain', group: 'lights', layer: 'front', duration: [11, 16], sound: 'water', calm: false,
     setup: (r) => ({ phase: r() * 6, wave: 0.5 + r() * 0.5 }),
     draw(ctx, v, e) {
       const base = v.hz + 2 * v.S;
@@ -407,6 +418,8 @@ export default {
 
   drawSky,
   drawSkyline,
+  drawBackdrop,
+  drawForeground,
   drawWater,
   rig,
   life,

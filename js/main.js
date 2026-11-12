@@ -9,7 +9,7 @@ import { Sound } from './audio.js';
 import { parseLink, buildShareLink } from './link.js';
 import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
-import { createLife, drawLife } from './life.js';
+import { createLife } from './life.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -58,7 +58,7 @@ function makeLife() {
   return made;
 }
 let life = makeLife();
-engine.lifeDraw = (ctx, v, layer) => drawLife(ctx, v, life.active, layer);
+engine.lifeActive = () => life.active;
 
 const tapColors = () => scene.show.palettes.flatMap((p) => p.colors);
 const intervalMs = () => scene.show.intervalSeconds * 1000;

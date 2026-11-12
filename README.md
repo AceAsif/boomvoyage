@@ -124,7 +124,7 @@ Nothing to install.
 node --test
 ```
 
-There are 181 tests in `tests/`:
+There are 193 tests in `tests/`:
 
 - `schedule.test.js` — the 2-minute timing (background tabs, slow timers, "Launch now", the `m:ss` text).
 - `show.test.js` — the show builder (same seed = same show, shows differ, missed cues are skipped, act names and their timing, same seed + theme = same show for share links).
@@ -144,6 +144,8 @@ There are 181 tests in `tests/`:
   more than two things at once, the same seed gives the same life, 10 to 25
   seconds between events, everything fades before the next show, a hidden tab
   pauses it, and the fireworks are exactly the same with and without it.
+  Also the layers: every event must say "behind" or "front", and "behind"
+  events are drawn after the backdrop and before the foreground landmarks.
 - `lifesound.test.js` — the quiet life sounds: each starts and ends silent,
   only fades (no jumps), every tone and noise is stopped, never more than two
   at once, the horn is loud and high enough to hear, and every city has one.
@@ -200,7 +202,9 @@ A scene is one config object in one file. The four that exist are good models.
 1. Copy the scene that is closest to your idea, for example
    `js/scenes/dubai.js` to `js/scenes/tokyo.js`.
 2. Change `id`, `name`, `country`, `tagline`, the `palette`, and the drawing
-   functions (`drawSky`, `drawSkyline`, `drawWater`). The start screen, the
+   functions (`drawSky`, `drawSkyline`, `drawWater`). Write the skyline as two
+   halves, `drawBackdrop` (far things) and `drawForeground` (the landmarks in
+   front), and let `drawSkyline` call one after the other. The start screen, the
    "Stop 0N" label, the page title and the switcher all read these.
 3. Set the framing: `horizon`, `focusX` and `portraitSpan` (how many scene
    units must fit across a phone held upright). Give portrait its own
@@ -243,7 +247,7 @@ runs. `js/life.js` decides when; the scene only says what each one looks like.
 life: [
   {
     id: 'ferry',            // a name, unique in this scene
-    layer: 'water',         // 'sky' (behind the skyline), 'land' (on it) or 'water'
+    layer: 'front',         // 'behind' or 'front' (see below); must be given
     group: 'water',         // two events of one group never show together
     weight: 2,              // how often it is picked (1 if left out)
     duration: [24, 32],     // shortest and longest time on screen, in seconds
@@ -263,6 +267,17 @@ and out is done for you. Use `r()` from `setup` for anything random, never
 moves something across the screen, `afloat()` puts it on the water, `glow()`
 and `glint()` draw small lights. Give a scene at least three events in at
 least two groups.
+
+Every event must say its `layer`:
+
+- `'behind'`: drawn over the sky and the scene's `drawBackdrop`, but before
+  its `drawForeground`. The foreground landmarks cover it. Use it for things
+  that pass behind a landmark: cars on a bridge behind a building, a plane or
+  birds behind a tower, lights on far buildings.
+- `'front'`: drawn over everything, the water too. Use it for boats and for
+  lights that sit on a foreground landmark itself.
+
+Look at the phone layout too: landmarks stand in different places there.
 
 Scenes draw in "scene units": x runs from -500 to 500 and y goes up from the
 waterline. `v.px(x)` and `v.py(y)` turn units into pixels, so one drawing
@@ -397,6 +412,23 @@ changing the place feels like travelling and not like changing a wallpaper.
   time, every 18 to 40 seconds. The fastest ones (shooting star, fountain)
   are left out, and the rest lose their blinking: the plane's strobe is off,
   the tower lights stay steady, the birds glide, the wheel lights stand still.
+- **Life has depth.** Each event is either behind the landmarks or in front
+  of everything. Each skyline is painted in two halves, a backdrop and a
+  foreground, and "behind" events are drawn between them. So the Opera House
+  hides the cars on the bridge deck behind it, on a phone it also hides the
+  city windows behind its sails, the plane in Dubai and the birds in Paris
+  pass behind the tower, and on a phone the lights at the foot of the London
+  Eye go behind Westminster Bridge. The two halves are only painted when a
+  "behind" event is on screen; the rest of the time the skyline is the same
+  single picture as before.
+  - **Sydney:** behind: shooting star, city lights and bridge cars, bridge
+    beacon. Front: ferry, yacht.
+  - **Dubai:** behind: plane. Front: dhow, abra, light on the Burj Khalifa,
+    fountain.
+  - **Paris:** behind: birds, cloud. Front: sightseeing boat, lantern boat,
+    tower sparkle.
+  - **London:** behind: wheel lights. Front: river bus, tug, clock glow,
+    red bus.
 - **Life pauses with the tab.** Its clock only moves when a frame is drawn,
   so a hidden tab pauses it. Ambient mode keeps it running.
 - **One landmark is the star.** In each new place one landmark carries the

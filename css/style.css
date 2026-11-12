@@ -245,6 +245,57 @@ button:focus-visible {
 .icon[aria-pressed="true"] .i-off { display: block; }
 .icon[aria-pressed="true"] { color: var(--ivory-dim); }
 
+/* Volume: a small slider that opens above the mute button. With a mouse it
+   opens on hover; with the keyboard when the button or the slider has
+   focus; on a phone main.js opens it after a tap (class is-open). */
+.vol { position: relative; display: inline-grid; }
+.vol-pop {
+  position: absolute;
+  right: -56px;                 /* its right edge lines up with the last button */
+  bottom: 100%;
+  width: 196px;
+  padding: 10px 16px 12px;
+  margin-bottom: 10px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(8, 10, 26, 0.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease), visibility 0s linear 0.2s;
+}
+/* An unseen bridge between button and slider, so the mouse can travel up. */
+.vol-pop::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 12px; }
+.vol.is-open .vol-pop,
+.vol:focus-within .vol-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .vol:hover .vol-pop { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+}
+.vol-label {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ivory-dim);
+}
+.vol-range {
+  width: 100%;
+  height: 24px;                 /* a comfortable target for a thumb */
+  margin: 0;
+  accent-color: var(--ember);
+  cursor: pointer;
+  background: transparent;
+}
+.vol-range:focus-visible { outline: 1px solid var(--ember); outline-offset: 4px; border-radius: 999px; }
+
 /* ---------- Floating messages (toast, link box) ---------- */
 
 /* Sits just above the controls. --footer is the height of the bottom row,
@@ -458,7 +509,7 @@ body.ambient #stage { cursor: none; }
   #shareBtn { grid-column: 2; grid-row: 1; }
   #ambientBtn { grid-column: 3; grid-row: 1; }
   #launchBtn { grid-column: 1; grid-row: 2; justify-self: end; }
-  #muteBtn { grid-column: 2; grid-row: 2; }
+  .vol { grid-column: 2; grid-row: 2; }
   #fsBtn { grid-column: 3; grid-row: 2; }
   .pill { padding: 0 16px; letter-spacing: 0.14em; }
   .scene-btn { padding: 0 13px; font-size: 12px; }

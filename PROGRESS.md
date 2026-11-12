@@ -18,12 +18,13 @@ Last updated: 2026-11-12
   - `js/main.js`: on press (or key P) the card is made once. Phones and tablets with a share sheet that takes files get the share sheet ("Postcard shared"; closing the sheet says nothing); everything else downloads the PNG ("Postcard saved"). The show does no extra work for it.
   - `tests/postcard.test.js` (new, 9 tests). 225 pass.
   - Checked in real Chrome and Firefox at 1600x815 (pixel ratio 1.5), 390x844 (3) and 844x390 (2): the button saves a PNG with the right name in 56 to 77 ms (Chrome), shows "Postcard saved", is disabled while busy, is hidden in ambient mode, and all six controls fit without touching the clock. Looked at the postcards from Paris (wide) and London (tall).
+- Step 3: README: volume slider, postcard, keys, tests, file list, creative decisions.
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 3: README, final report.
+- The user opens the Pull Request for `feature/volume-and-postcard` and merges it. Do not merge into main from here.
 
 ## Measurements
 - AFTER (this branch, same window): Chrome Sydney and Paris quiet 144 fps, heavy show 144 fps. Firefox quiet 144 fps; heavy show Sydney 69 and 73 fps, Paris 68 and 73 fps. Same as before within Firefox's usual swing (see the line below): nothing was added to the frame loop, the volume is one number on the master gain and the postcard only runs on a press.
@@ -34,4 +35,10 @@ Last updated: 2026-11-12
 - Keyboard focus opening the popover is plain CSS (`:focus-within`). The test browser window does not hold focus, so this one thing was not checked by machine: on the hand-test list.
 
 ## Problems / questions for the user
-- none
+- To test by hand (could not be checked by machine):
+  1. Listen: the slider at full is as loud as before; lower is quieter for fireworks AND life sounds; at 0 there is silence and the mute icon shows "off".
+  2. Keyboard: Tab to the mute button, Tab again to the slider (it should open), arrow keys move it, Esc closes it.
+  3. Mouse: hover the mute button, the slider opens, and stays open while the mouse moves up onto it.
+  4. Phone: tap the mute button: sound toggles and the slider opens for a few seconds.
+  5. Phone: tap the camera: the share sheet opens with the picture. Desktop: the PNG downloads.
+  6. Open a saved postcard and zoom in: it should be sharp.

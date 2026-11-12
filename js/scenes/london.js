@@ -324,14 +324,22 @@ function drawFar(ctx, v) {
   ctx.globalAlpha = 1;
 }
 
-function drawSkyline(ctx, v) {
-  const X = v.px, Y = v.py, S = v.S;
+// The skyline is drawn in two halves, so that life events can pass between
+// them (the lights on the wheel are behind the bridge on a phone).
+// Backdrop: the far city, County Hall, the Abbey and the wheel.
+function drawBackdrop(ctx, v) {
   const at = layout(v);
-
   drawFar(ctx, at.far);
   drawCountyHall(ctx, v, at.eyeX);
   if (!v.portrait) drawAbbey(ctx, v);
   drawEye(ctx, v, at.eyeX);
+}
+
+// Foreground: the palace, the clock tower, the river wall and the bridge.
+function drawForeground(ctx, v) {
+  const X = v.px, Y = v.py, S = v.S;
+  const at = layout(v);
+  ctx.lineCap = 'round';   // as the wheel leaves it: the clock hands have round ends
   drawPalace(ctx, at.palace);
   drawBigBen(ctx, v);
 
@@ -344,6 +352,11 @@ function drawSkyline(ctx, v) {
   for (let x = -640; x < 660; x += 15) lamp(ctx, X(x), Y(QUAY + 2.2), Math.max(0.5, 0.5 * S), WARM, 0.85);
 
   drawBridge(ctx, v, at.bridge[0], at.bridge[1]);
+}
+
+function drawSkyline(ctx, v) {
+  drawBackdrop(ctx, v);
+  drawForeground(ctx, v);
 }
 
 // A long soft streak of cloud.
@@ -409,7 +422,7 @@ function rig(v) {
 const life = [
   {
     // A river bus with a row of lit windows, crossing the whole view.
-    id: 'riverbus', group: 'water', layer: 'water', weight: 2, duration: [24, 32], sound: 'horn',
+    id: 'riverbus', group: 'water', layer: 'front', weight: 2, duration: [24, 32], sound: 'horn',
     setup: (r) => ({ depth: 0.1 + r() * 0.14 }),
     draw(ctx, v, e) {
       const s = v.S * (1.5 + e.p.depth * 2.4);
@@ -420,7 +433,7 @@ const life = [
   },
   {
     // A small tug working its way a short distance up the river.
-    id: 'tug', group: 'water', layer: 'water', duration: [18, 26], sound: 'water',
+    id: 'tug', group: 'water', layer: 'front', duration: [18, 26], sound: 'water',
     setup: (r) => ({ depth: 0.36 + r() * 0.12, from: 0.15 + r() * 0.4 }),
     draw(ctx, v, e) {
       const s = v.S * (1.3 + e.p.depth * 2);
@@ -432,8 +445,9 @@ const life = [
   },
   {
     // The wheel turning: eight brighter lights travel slowly round the rim.
+    // Behind: on a phone the bridge runs in front of the foot of the wheel.
     // With reduce motion they are lit but stay where they are.
-    id: 'wheel', group: 'lights', layer: 'land', duration: [14, 20], sound: 'chime',
+    id: 'wheel', group: 'lights', layer: 'behind', duration: [14, 20], sound: 'chime',
     setup: (r) => ({ phase: r() * 6.3 }),
     draw(ctx, v, e) {
       const x0 = v.px(layout(v).eyeX), y0 = v.py(EYE.y), R = (EYE.r + 4.2) * v.S;
@@ -446,7 +460,7 @@ const life = [
   },
   {
     // The clock face glowing a little brighter, slowly, like a breath.
-    id: 'clock', group: 'lights', layer: 'land', duration: [9, 13], sound: 'chime',
+    id: 'clock', group: 'lights', layer: 'front', duration: [9, 13], sound: 'chime',
     draw(ctx, v, e) {
       const pulse = e.calm ? 0.5 : 0.3 + 0.7 * Math.pow(Math.sin(e.t * 1.1), 2);
       glow(ctx, v.px(BEN.x + BEN.w / 2), v.py(101.6), Math.max(3, 4.6 * v.S), '#fff0c4', pulse * 0.7);
@@ -454,7 +468,7 @@ const life = [
   },
   {
     // A second red bus crossing Westminster Bridge from one end to the other.
-    id: 'bus', group: 'road', layer: 'land', duration: [16, 22],
+    id: 'bus', group: 'road', layer: 'front', duration: [16, 22],
     draw(ctx, v, e) {
       const X = v.px, Y = v.py, S = v.S;
       const [L, R] = layout(v).bridge;
@@ -494,6 +508,8 @@ export default {
 
   drawSky,
   drawSkyline,
+  drawBackdrop,
+  drawForeground,
   drawWater,
   rig,
   life,

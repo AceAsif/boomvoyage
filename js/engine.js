@@ -4,6 +4,9 @@
 
 import { Particles } from './particles.js';
 import { createGovernor } from './quality.js';
+import { drawLife, drawLandWithLife } from './life.js';
+
+const NO_LIFE = [];
 import { burst, comet, mine, onDeath, css, GOLD, WHITE, BURST_TYPES } from './fireworks.js';
 
 const DEFAULT_PALETTE = {
@@ -77,9 +80,14 @@ export class Engine {
     // For measuring (?debug=1). `stats` records frame times; `skip` can turn
     // single drawing parts off (for example 'water') to see what they cost.
     this.stats = null;
-    // Life between shows (see life.js): called three times per frame, once
-    // for each layer: 'sky' (behind the skyline), 'land' and 'water'.
-    this.lifeDraw = null;
+    // Life between shows (see life.js): a function that returns the events
+    // on screen now. 'behind' events are drawn between the two halves of the
+    // skyline, 'front' events over everything.
+    this.lifeActive = null;
+    // The skyline in two halves (backdrop, foreground). Only painted when a
+    // 'behind' event needs it; see landHalves().
+    this.halves = null;
+    this.landHalves = this.landHalves.bind(this);
     this.skip = new Set();
     // Makes the fireworks layer smaller if (and only if) this browser cannot
     // keep up with it at full size. See quality.js.
@@ -197,6 +205,29 @@ export class Engine {
     const { w, h } = this.view;
     this.land.x.clearRect(0, 0, w, h);
     if (this.scene.drawSkyline) this.scene.drawSkyline(this.land.x, this.view);
+    this.halves = null;   // painted again when next needed
+  }
+
+  // The same skyline as two pictures: the backdrop and the foreground
+  // landmarks. Painted on first use after a resize or a change of scene, so
+  // it costs nothing until a 'behind' life event appears. Drawing the two
+  // on top of each other gives the same picture as `land`.
+  landHalves() {
+    const scene = this.scene;
+    if (!scene.drawBackdrop || !scene.drawForeground) return null;
+    if (!this.halves) {
+      const { w, h, dpr } = this.view;
+      const make = (draw) => {
+        const layer = makeLayer();
+        layer.c.width = Math.round(w * dpr);
+        layer.c.height = Math.round(h * dpr);
+        layer.x.setTransform(dpr, 0, 0, dpr, 0, 0);
+        draw(layer.x, this.view);
+        return layer.c;
+      };
+      this.halves = { back: make(scene.drawBackdrop), front: make(scene.drawForeground) };
+    }
+    return this.halves;
   }
 
   // Prepares "the skyline lit by a burst". A burst of colour (r, g, b) should
@@ -496,7 +527,6 @@ export class Engine {
       }
       ctx.globalAlpha = 1;
     }
-    if (this.lifeDraw) this.lifeDraw(ctx, this.view, 'sky');
 
     // Fireworks layer: dim what is there, then add this frame's sparks.
     if (this.busy) { this.lastBusy = this.time; this.fxLit = true; }
@@ -538,7 +568,8 @@ export class Engine {
     }
 
     ctx.globalCompositeOperation = 'source-over';
-    ctx.drawImage(this.land.c, 0, 0, w, h);
+    const living = this.lifeActive ? this.lifeActive() : NO_LIFE;
+    drawLandWithLife(ctx, this.view, living, this.land.c, this.landHalves);
 
     // Pale surfaces (sails, stone, windows) catch the light of each burst.
     if (!calm && L.i > 0.02 && !skip.has('light')) this.lightLand(ctx, w);
@@ -550,9 +581,8 @@ export class Engine {
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    if (this.lifeDraw) this.lifeDraw(ctx, this.view, 'land');
     this.renderWater(ctx, w, h, hz, dpr);
-    if (this.lifeDraw) this.lifeDraw(ctx, this.view, 'water');
+    drawLife(ctx, this.view, living, 'front');
   }
 
   // Adds "skyline x burst colour" on top of the skyline: dark silhouettes

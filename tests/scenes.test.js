@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { scenes, getScene } from '../js/scenes/index.js';
 import { buildShow, SIGNATURES, SIGNATURE_RIG, EXTRA_MOVEMENTS, MOVEMENTS } from '../js/show.js';
 import { parseLink } from '../js/link.js';
-import { createLife, lifeRandom } from '../js/life.js';
+import { createLife, lifeRandom, LIFE_LAYERS } from '../js/life.js';
 import { LIFE_SOUNDS } from '../js/audio.js';
 import { fakeContext, fakeView, SCREENS } from './helpers/fake-canvas.js';
 
@@ -152,7 +152,7 @@ for (const scene of scenes) {
     assert.equal(new Set(ids).size, ids.length, 'ids must be unique');
     for (const d of scene.life) {
       assert.equal(typeof d.draw, 'function', `${d.id} needs draw()`);
-      assert.ok(['sky', 'land', 'water'].includes(d.layer), `${d.id}: layer must be sky, land or water`);
+      assert.ok(LIFE_LAYERS.includes(d.layer), `${d.id}: layer must be "behind" or "front", not ${JSON.stringify(d.layer)}`);
       assert.ok(d.duration[0] >= 3 && d.duration[0] <= d.duration[1] && d.duration[1] <= 40, `${d.id}: odd duration`);
       if (d.sound) assert.equal(typeof d.sound, 'string');
     }
@@ -183,6 +183,25 @@ for (const scene of scenes) {
         assert.ok(drew > 0, `${w}x${h}: ${d.id} never drew anything`);
       }
     }
+  });
+
+  test(`scene "${scene.id}": the skyline comes in two halves that together are the whole skyline`, () => {
+    assert.equal(typeof scene.drawBackdrop, 'function', 'needed so "behind" life events can be covered by the landmarks');
+    assert.equal(typeof scene.drawForeground, 'function');
+    for (const [w, h] of SCREENS) {
+      const v = fakeView(scene, w, h);
+      const whole = fakeContext(), back = fakeContext(), front = fakeContext();
+      scene.drawSkyline(whole, v);
+      scene.drawBackdrop(back, v);
+      scene.drawForeground(front, v);
+      assert.ok(back.calls.total > 20, `${w}x${h}: the backdrop drew almost nothing`);
+      assert.ok(front.calls.total > 20, `${w}x${h}: the foreground drew almost nothing`);
+      assert.equal(back.calls.total + front.calls.total, whole.calls.total, `${w}x${h}: backdrop + foreground is not the same drawing as the skyline`);
+    }
+  });
+
+  test(`scene "${scene.id}": has life both behind and in front of its landmarks`, () => {
+    for (const layer of LIFE_LAYERS) assert.ok(scene.life.some((d) => d.layer === layer), `no "${layer}" event`);
   });
 
   test(`scene "${scene.id}": its life keeps the rules over ten quiet stretches`, () => {

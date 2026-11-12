@@ -254,14 +254,35 @@ function drawOperaHouse(ctx, v) {
 // On a phone the city is a small far-away row (see drawSkylinePortrait).
 const cityView = (v) => (v.portrait ? shifted(v, 292, 0.55) : v);
 
-// Portrait: the classic postcard view. The whole bridge fills the width,
-// the Opera House sits in front of its left side, and the city is a small
-// far-away row behind the sails.
-function drawSkylinePortrait(ctx, v) {
+// The skyline is drawn in two halves, so that life events (see the end of
+// this file) can pass between them.
+//
+// Backdrop: the far shore, the city and the bridge.
+// Portrait is the classic postcard view: the whole bridge fills the width
+// and the city is a small far-away row.
+function drawBackdrop(ctx, v) {
   drawFarShore(ctx, v);
   drawCity(ctx, cityView(v));
+  if (!v.portrait) {
+    // North shore, to the right of the bridge.
+    towerRow(ctx, v, {
+      seed: 41, from: 436, to: 640, minW: 12, maxW: 24, minH: 16, maxH: 62, gap: 6,
+      colors: ['#090c1c', '#0c1024'],
+      windows: { lit: 0.24, colors: [WARM, '#bcd8ff'] },
+    });
+  }
   drawBridge(ctx, v);
-  drawOperaHouse(ctx, shifted(v, 246, 1.08));
+}
+
+// Foreground: the Opera House. It stands in front of the bridge deck (and,
+// on a phone, in front of the left half of the bridge and most of the city).
+function drawForeground(ctx, v) {
+  drawOperaHouse(ctx, v.portrait ? shifted(v, 246, 1.08) : v);
+}
+
+function drawSkyline(ctx, v) {
+  drawBackdrop(ctx, v);
+  drawForeground(ctx, v);
 }
 
 function drawFarShore(ctx, v) {
@@ -278,22 +299,6 @@ function drawFarShore(ctx, v) {
   ctx.fill();
 }
 
-function drawSkyline(ctx, v) {
-  if (v.portrait) { drawSkylinePortrait(ctx, v); return; }
-  const X = v.px, Y = v.py, S = v.S, w = v.w;
-  drawFarShore(ctx, v);
-  drawCity(ctx, v);
-
-  // North shore, to the right of the bridge.
-  towerRow(ctx, v, {
-    seed: 41, from: 436, to: 640, minW: 12, maxW: 24, minH: 16, maxH: 62, gap: 6,
-    colors: ['#090c1c', '#0c1024'],
-    windows: { lit: 0.24, colors: [WARM, '#bcd8ff'] },
-  });
-
-  drawBridge(ctx, v);
-  drawOperaHouse(ctx, v);
-}
 
 // The lit front row of city towers (also used by the "windows" life event).
 const fade = (t) => 0.45 + 0.75 * Math.sin(Math.PI * Math.min(1, t * 1.05));
@@ -394,7 +399,7 @@ const CITY_TOWERS = towerPlan(CITY_FRONT);
 const life = [
   {
     // A green-and-cream harbour ferry crossing the whole view.
-    id: 'ferry', group: 'water', layer: 'water', weight: 2, duration: [24, 32], sound: 'horn',
+    id: 'ferry', group: 'water', layer: 'front', weight: 2, duration: [24, 32], sound: 'horn',
     setup: (r) => ({ depth: 0.1 + r() * 0.16 }),
     draw(ctx, v, e) {
       const s = v.S * (1.5 + e.p.depth * 2.4);
@@ -405,7 +410,7 @@ const life = [
   },
   {
     // A small yacht drifting a short way, its mast light swaying.
-    id: 'yacht', group: 'water', layer: 'water', duration: [18, 26], sound: 'water',
+    id: 'yacht', group: 'water', layer: 'front', duration: [18, 26], sound: 'water',
     setup: (r) => ({ depth: 0.3 + r() * 0.25, from: 0.1 + r() * 0.5 }),
     draw(ctx, v, e) {
       const s = v.S * (1.2 + e.p.depth * 2);
@@ -416,7 +421,7 @@ const life = [
   },
   {
     // A shooting star: quick, high up, gone before you are sure you saw it.
-    id: 'star', layer: 'sky', duration: [3.4, 4.4], calm: false,
+    id: 'star', layer: 'behind', duration: [3.4, 4.4], calm: false,
     setup: (r) => ({ x: 0.15 + r() * 0.7, y: 0.06 + r() * 0.22, slope: 0.25 + r() * 0.4, len: 0.16 + r() * 0.12 }),
     draw(ctx, v, e) {
       const k = (e.u - 0.25) / 0.3;                                // the flight takes about a second
@@ -441,8 +446,9 @@ const life = [
   },
   {
     // City lights: office windows switching on, staying a while and going
-    // dark, and the headlights of a few cars crossing the bridge.
-    id: 'citylights', group: 'lights', layer: 'land', duration: [14, 20],
+    // dark, and the headlights of a few cars crossing the bridge. Behind:
+    // the Opera House stands in front of the bridge deck and hides them.
+    id: 'citylights', group: 'lights', layer: 'behind', duration: [14, 20],
     setup: (r) => Array.from({ length: 16 }, () => {
       const t = CITY_TOWERS[Math.floor(r() * CITY_TOWERS.length)];
       const on = r() * 0.5;
@@ -458,9 +464,6 @@ const life = [
         glow(ctx, v.px(530 - ((u + 0.17) % 1) * 820), v.py(B.deck + 1.6), Math.max(0.6, 0.5 * v.S), '#ff5a4a', 0.8);
       }
       for (const win of e.p) {
-        // On a phone the Opera House stands in front of most of the city:
-        // only windows that show above it are lit.
-        if (v.portrait && !(win.x * 0.55 + 292 < 40 && win.y * 0.55 > 46)) continue;
         const k = Math.min(1, Math.max(0, (e.u - win.on) / 0.06)) * Math.min(1, Math.max(0, (win.off - e.u) / 0.06));
         if (k <= 0) continue;
         ctx.globalAlpha = e.alpha * k;
@@ -472,7 +475,7 @@ const life = [
   },
   {
     // The red beacon on top of the bridge arch glows a little brighter, slowly.
-    id: 'beacon', group: 'lights', layer: 'land', duration: [9, 13],
+    id: 'beacon', group: 'lights', layer: 'behind', duration: [9, 13],
     draw(ctx, v, e) {
       const pulse = e.calm ? 0.6 : 0.35 + 0.65 * Math.pow(Math.sin(e.t * 1.6), 2);
       glow(ctx, v.px(B.cx), v.py(upperChord(B.cx) + 6), Math.max(1.6, 2 * v.S), '#ff6a5a', pulse);
@@ -503,6 +506,8 @@ export default {
 
   drawSky,
   drawSkyline,
+  drawBackdrop,
+  drawForeground,
   drawWater,
   rig,
   life,

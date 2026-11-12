@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLife, drawLife, lifeRandom, LIFE_DEFAULTS } from '../js/life.js';
+import { createLife, drawLife, lifeRandom, LIFE_DEFAULTS, LIFE_LAYERS, drawLandWithLife, hasLayer } from '../js/life.js';
 import { buildShow } from '../js/show.js';
 import sydney from '../js/scenes/sydney.js';
 import { fakeContext } from './helpers/fake-canvas.js';
 
 // Four pretend events. The drawing does not matter for the timing rules.
 const DEFS = [
-  { id: 'boat', group: 'water', layer: 'water', duration: [20, 28], weight: 2, draw() {} },
-  { id: 'raft', group: 'water', layer: 'water', duration: [14, 20], draw() {} },
-  { id: 'star', layer: 'sky', duration: [4, 6], calm: false, draw() {} },
-  { id: 'lamps', layer: 'land', duration: [10, 16], draw() {} },
+  { id: 'boat', group: 'water', layer: 'front', duration: [20, 28], weight: 2, draw() {} },
+  { id: 'raft', group: 'water', layer: 'front', duration: [14, 20], draw() {} },
+  { id: 'star', layer: 'behind', duration: [4, 6], calm: false, draw() {} },
+  { id: 'lamps', layer: 'front', duration: [10, 16], draw() {} },
 ];
 
 const SHOW = 47;      // seconds a show lasts
@@ -207,22 +207,22 @@ test('the fireworks are identical with and without life events', () => {
 test('drawLife draws only the asked layer and fades each event as a whole', () => {
   const calls = [];
   const defs = [
-    { id: 'a', layer: 'sky', duration: [10, 10], draw: (ctx, v, e) => calls.push(['a', ctx.globalAlpha, e.alpha]) },
-    { id: 'b', layer: 'water', duration: [10, 10], draw: () => calls.push(['b']) },
-    { id: 'c', duration: [10, 10], draw: () => calls.push(['c']) },   // no layer = sky
+    { id: 'a', layer: 'behind', duration: [10, 10], draw: (ctx, v, e) => calls.push(['a', ctx.globalAlpha, e.alpha]) },
+    { id: 'b', layer: 'front', duration: [10, 10], draw: () => calls.push(['b']) },
+    { id: 'c', layer: 'behind', duration: [10, 10], draw: () => calls.push(['c']) },
   ];
   const life = createLife(defs, { seed: 1 });
   life.tick(DT, 500, true);
   life.force('a'); life.force('b'); life.force('c');
   for (let t = 0; t < 3; t += DT) life.tick(DT, 500, true);
   const ctx = fakeContext();
-  drawLife(ctx, {}, life.active, 'sky');
+  drawLife(ctx, {}, life.active, 'behind');
   assert.deepEqual(calls.map((c) => c[0]), ['a', 'c']);
   assert.equal(calls[0][1], calls[0][2], 'globalAlpha is set to the event alpha');
   assert.equal(ctx.calls.save, 2);
   assert.equal(ctx.calls.restore, 2);
   calls.length = 0;
-  drawLife(ctx, {}, life.active, 'water');
+  drawLife(ctx, {}, life.active, 'front');
   assert.deepEqual(calls.map((c) => c[0]), ['b']);
   drawLife(ctx, {}, life.active, 'land');
   assert.equal(calls.length, 1);
@@ -232,4 +232,65 @@ test('a scene with no life list just stays quiet', () => {
   const life = run(createLife(undefined, { seed: 1 }), 2);
   assert.equal(life.log.length, 0);
   assert.equal(life.force('nothing'), null);
+});
+
+// ---------- layers: behind the landmarks, or in front of everything ----------
+
+test('every life event must say its layer: "behind" or "front"', () => {
+  assert.deepEqual(LIFE_LAYERS, ['behind', 'front']);
+  const one = (layer) => [{ id: 'x', layer, duration: [5, 5], draw() {} }];
+  assert.throws(() => createLife(one(undefined)), /layer must be/);
+  assert.throws(() => createLife(one('sky')), /layer must be/);
+  assert.throws(() => createLife(one('water')), /layer must be/);
+  createLife(one('behind'));
+  createLife(one('front'));
+});
+
+// A canvas that writes down what is drawn on it, in order.
+function recorder() {
+  const log = [];
+  return { log, globalAlpha: 1, save() {}, restore() {}, drawImage(picture) { log.push(picture); } };
+}
+function lifeWith(layers) {
+  const defs = layers.map((layer, i) => ({ id: `e${i}`, layer, duration: [10, 10], draw: (ctx) => ctx.log.push(`event ${i} (${layer})`) }));
+  const life = createLife(defs, { seed: 1 });
+  life.tick(DT, 500, true);
+  defs.forEach((d) => life.force(d.id));
+  for (let t = 0; t < 3; t += DT) life.tick(DT, 500, true);
+  return life;
+}
+const V = { w: 100, h: 50 };
+
+test('"behind" events are drawn after the backdrop and before the foreground landmarks', () => {
+  const ctx = recorder();
+  const life = lifeWith(['behind', 'front', 'behind']);
+  const order = drawLandWithLife(ctx, V, life.active, 'LAND', () => ({ back: 'BACK', front: 'FRONT' }));
+  assert.deepEqual(ctx.log, ['BACK', 'event 0 (behind)', 'event 2 (behind)', 'FRONT']);
+  assert.deepEqual(order, ['back', 'behind', 'front']);
+  // The 'front' event comes later, over everything.
+  drawLife(ctx, V, life.active, 'front');
+  assert.equal(ctx.log.at(-1), 'event 1 (front)');
+  assert.ok(ctx.log.indexOf('FRONT') < ctx.log.indexOf('event 1 (front)'));
+});
+
+test('with nothing behind, the skyline is one picture and its halves are never asked for', () => {
+  const ctx = recorder();
+  const life = lifeWith(['front', 'front']);
+  let asked = 0;
+  drawLandWithLife(ctx, V, life.active, 'LAND', () => { asked += 1; return { back: 'BACK', front: 'FRONT' }; });
+  assert.deepEqual(ctx.log, ['LAND']);
+  assert.equal(asked, 0, 'the halves cost memory and time: only on demand');
+  const empty = recorder();
+  drawLandWithLife(empty, V, [], 'LAND', () => { asked += 1; return null; });
+  assert.deepEqual(empty.log, ['LAND']);
+  assert.equal(asked, 0);
+});
+
+test('a scene without halves still shows its "behind" events (over the skyline)', () => {
+  const ctx = recorder();
+  const life = lifeWith(['behind']);
+  drawLandWithLife(ctx, V, life.active, 'LAND', () => null);
+  assert.deepEqual(ctx.log, ['LAND', 'event 0 (behind)']);
+  assert.equal(hasLayer(life.active, 'behind'), true);
+  assert.equal(hasLayer(life.active, 'front'), false);
 });

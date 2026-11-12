@@ -20,8 +20,12 @@
 //   {
 //     id: 'ferry',            // unique in the scene
 //     group: 'water',         // optional: only one event of a group at a time
-//     layer: 'water',         // 'sky' (behind the skyline), 'land' (in front
-//                             // of it) or 'water' (on the water)
+//     layer: 'front',         // required. 'behind' = drawn over the sky and
+//                             // the far scene but BEFORE the foreground
+//                             // landmarks, so they cover it (cars on a
+//                             // bridge behind a building, a plane behind a
+//                             // tower). 'front' = drawn over everything
+//                             // (boats, lights on a landmark itself).
 //     weight: 2,              // optional: how often it is picked (default 1)
 //     duration: [20, 28],     // seconds, shortest and longest
 //     calm: false,            // optional: false = skip with "reduce motion"
@@ -40,6 +44,8 @@ export function lifeRandom(seed) {
   };
 }
 
+export const LIFE_LAYERS = ['behind', 'front'];
+
 export const LIFE_DEFAULTS = {
   minGap: 10,      // seconds between the starts of two events...
   maxGap: 25,
@@ -56,6 +62,9 @@ export function createLife(defs = [], opts = {}) {
   const calm = !!opts.calm;
   const cfg = { ...LIFE_DEFAULTS, ...(calm ? LIFE_CALM : {}), ...opts };
   const r = lifeRandom(opts.seed ?? 1);
+  for (const d of defs) {
+    if (!LIFE_LAYERS.includes(d.layer)) throw new Error(`life event "${d.id}": layer must be "behind" or "front", not ${JSON.stringify(d.layer)}`);
+  }
   const pool = defs.filter((d) => !(calm && d.calm === false));
   const between = (lo, hi) => lo + r() * (hi - lo);
 
@@ -154,10 +163,40 @@ export function createLife(defs = [], opts = {}) {
 export function drawLife(ctx, v, active, layer) {
   for (let i = 0; i < active.length; i++) {
     const e = active[i];
-    if ((e.def.layer ?? 'sky') !== layer) continue;
+    if (e.def.layer !== layer) continue;
     ctx.save();
     ctx.globalAlpha = e.alpha;
     e.def.draw(ctx, v, e);
     ctx.restore();
   }
+}
+
+// True if any event on screen belongs to this layer.
+export function hasLayer(active, layer) {
+  for (let i = 0; i < active.length; i++) if (active[i].def.layer === layer) return true;
+  return false;
+}
+
+// Draws the skyline, with the 'behind' events tucked in between its two
+// halves: first the backdrop (far city, bridges), then the events, then the
+// foreground landmarks, which cover them.
+//   land  = one picture of the whole skyline (used when nothing is behind);
+//   split = a function that returns { back, front } pictures of the same
+//           skyline in two halves, or null if the scene has no halves.
+// Returns what it did, in order (handy for tests).
+export function drawLandWithLife(ctx, v, active, land, split) {
+  if (!hasLayer(active, 'behind')) {
+    ctx.drawImage(land, 0, 0, v.w, v.h);
+    return ['land'];
+  }
+  const parts = split ? split() : null;
+  if (!parts) {
+    ctx.drawImage(land, 0, 0, v.w, v.h);
+    drawLife(ctx, v, active, 'behind');
+    return ['land', 'behind'];
+  }
+  ctx.drawImage(parts.back, 0, 0, v.w, v.h);
+  drawLife(ctx, v, active, 'behind');
+  ctx.drawImage(parts.front, 0, 0, v.w, v.h);
+  return ['back', 'behind', 'front'];
 }

@@ -7,6 +7,7 @@ export function fakeContext() {
   const gradient = { addColorStop() {} };
   const target = {
     calls,
+    globalAlpha: 1,
     createLinearGradient: () => gradient,
     createRadialGradient: () => gradient,
     createPattern: () => ({}),
@@ -25,7 +26,11 @@ export function fakeContext() {
         calls[name] = (calls[name] || 0) + 1;
       };
     },
-    set(obj, name, value) { obj[name] = value; return true; },
+    set(obj, name, value) {
+      if (name === 'globalAlpha' && !(value >= 0 && value <= 1.0000001)) throw new Error(`globalAlpha set to ${value}`);
+      obj[name] = value;
+      return true;
+    },
   });
 }
 

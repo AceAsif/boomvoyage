@@ -77,6 +77,9 @@ export class Engine {
     // For measuring (?debug=1). `stats` records frame times; `skip` can turn
     // single drawing parts off (for example 'water') to see what they cost.
     this.stats = null;
+    // Life between shows (see life.js): called three times per frame, once
+    // for each layer: 'sky' (behind the skyline), 'land' and 'water'.
+    this.lifeDraw = null;
     this.skip = new Set();
     // Makes the fireworks layer smaller if (and only if) this browser cannot
     // keep up with it at full size. See quality.js.
@@ -493,6 +496,7 @@ export class Engine {
       }
       ctx.globalAlpha = 1;
     }
+    if (this.lifeDraw) this.lifeDraw(ctx, this.view, 'sky');
 
     // Fireworks layer: dim what is there, then add this frame's sparks.
     if (this.busy) { this.lastBusy = this.time; this.fxLit = true; }
@@ -546,7 +550,9 @@ export class Engine {
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    if (this.lifeDraw) this.lifeDraw(ctx, this.view, 'land');
     this.renderWater(ctx, w, h, hz, dpr);
+    if (this.lifeDraw) this.lifeDraw(ctx, this.view, 'water');
   }
 
   // Adds "skyline x burst colour" on top of the skyline: dark silhouettes

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { scenes, getScene } from '../js/scenes/index.js';
 import { buildShow, SIGNATURES, SIGNATURE_RIG, EXTRA_MOVEMENTS, MOVEMENTS } from '../js/show.js';
 import { parseLink } from '../js/link.js';
+import { createLife, lifeRandom } from '../js/life.js';
+import { LIFE_SOUNDS } from '../js/audio.js';
 import { fakeContext, fakeView, SCREENS } from './helpers/fake-canvas.js';
 
 test('there is at least one scene and ids are unique', () => {
@@ -133,5 +135,66 @@ for (const scene of scenes) {
     assert.ok(scene.portraitSpan > 200 && scene.portraitSpan < 900, 'portraitSpan says how many scene units fit across a phone');
     const v = fakeView(scene, 390, 844);
     assert.ok(v.S > 0.4, 'landmarks would be tiny on a phone');
+  });
+}
+
+// ---------- life between shows ----------
+
+for (const scene of scenes) {
+  test(`scene "${scene.id}": has life between shows`, () => {
+    assert.ok(Array.isArray(scene.life), 'every scene needs a life list');
+  });
+  if (!scene.life) continue;
+
+  test(`scene "${scene.id}": its life events are well formed`, () => {
+    assert.ok(scene.life.length >= 3, 'at least three events, so the quiet time has variety');
+    const ids = scene.life.map((d) => d.id);
+    assert.equal(new Set(ids).size, ids.length, 'ids must be unique');
+    for (const d of scene.life) {
+      assert.equal(typeof d.draw, 'function', `${d.id} needs draw()`);
+      assert.ok(['sky', 'land', 'water'].includes(d.layer), `${d.id}: layer must be sky, land or water`);
+      assert.ok(d.duration[0] >= 3 && d.duration[0] <= d.duration[1] && d.duration[1] <= 40, `${d.id}: odd duration`);
+      if (d.sound) assert.equal(typeof d.sound, 'string');
+    }
+    for (const d of scene.life) assert.ok(d.sound === undefined || LIFE_SOUNDS.includes(d.sound), `${d.id}: unknown sound "${d.sound}"`);
+    assert.ok(scene.life.filter((d) => d.calm !== false).length >= 2, 'something must be left with reduce motion');
+    assert.ok(new Set(scene.life.map((d) => d.group ?? d.id)).size >= 2, 'needs two groups, or two events could never overlap');
+  });
+
+  test(`scene "${scene.id}": every life event draws on every screen size, both ways, calm or not`, () => {
+    const r = lifeRandom(5);
+    for (const [w, h] of SCREENS) {
+      const v = fakeView(scene, w, h);
+      for (const d of scene.life) {
+        let drew = 0;
+        for (const dir of [1, -1]) {
+          for (const calm of [false, true]) {
+            const dur = (d.duration[0] + d.duration[1]) / 2;
+            const p = d.setup ? d.setup(r) : {};
+            for (const u of [0.005, 0.2, 0.5, 0.8, 0.995]) {
+              const ctx = fakeContext();
+              ctx.globalAlpha = 0.8;
+              d.draw(ctx, v, { t: u * dur, dur, u, alpha: 0.8, dir, p, calm, def: d, id: d.id });
+              assert.ok(Math.abs(ctx.globalAlpha - 0.8) < 1e-9, `${d.id} must leave globalAlpha as it found it`);
+              drew += ctx.calls.total;
+            }
+          }
+        }
+        assert.ok(drew > 0, `${w}x${h}: ${d.id} never drew anything`);
+      }
+    }
+  });
+
+  test(`scene "${scene.id}": its life keeps the rules over ten quiet stretches`, () => {
+    const life = createLife(scene.life, { seed: 321 });
+    const seen = new Set();
+    for (let wall = 0; wall < 1200; wall += 1 / 20) {
+      const inCycle = wall % 120;
+      life.tick(1 / 20, 120 - inCycle, inCycle >= 47);
+      assert.ok(life.active.length <= 2);
+      if (inCycle > 1.5 && inCycle < 47) assert.equal(life.active.length, 0, 'life during a show');
+      for (const e of life.active) seen.add(e.id);
+    }
+    assert.equal(seen.size, scene.life.length, `some events never appeared: only ${[...seen].join(', ')}`);
   });
 }

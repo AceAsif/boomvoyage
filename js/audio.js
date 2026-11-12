@@ -4,7 +4,13 @@
 // The engine calls these methods at the same moment it draws the matching
 // effect, so sound and picture stay together.
 
+import { LIFE_SOUNDS, lifeSoundPlan, playLifeSound, createSoundGate } from './lifesound.js';
+
+// The quiet sounds a life event may ask for (see js/lifesound.js).
+export { LIFE_SOUNDS };
+
 const KEY = 'boomvoyage.muted';
+
 const LEVEL = 0.8; // master volume when not muted (leaves headroom for the finale)
 
 export function loadMuted() {
@@ -383,5 +389,53 @@ export class Sound {
       osc.start(t);
       osc.stop(t + 3.8);
     });
+  }
+
+  // ---------- life between shows ----------
+  // One very quiet sound for a small event between shows: 'horn' (a distant
+  // boat horn), 'water' (a few soft laps) or 'chime' (three gentle notes).
+  // What each one is made of is written down in js/lifesound.js.
+  //
+  // They go through the same master volume as everything else, so the mute
+  // button silences them. At most two play at once. Each has its own volume
+  // strip, so it can be faded away early when a show begins.
+  // Returns true if the sound will play. `now` skips the random wait.
+  life(kind, { now = false } = {}) {
+    if (!this.live || document.hidden) return false;
+    const plan = lifeSoundPlan(kind);
+    if (!plan) return false;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (!this.lifeGate) { this.lifeGate = createSoundGate(); this.lifeStrips = new Set(); }
+    const at = t + (now ? 0.05 : 0.5 + Math.random() * 2);
+    if (!this.lifeGate.admit(t, at, at + plan.length)) return false;
+
+    const strip = { gain: ctx.createGain(), sources: [] };
+    strip.gain.connect(this.voice(Math.random() * 1.2 - 0.6));
+    strip.sources = playLifeSound(ctx, strip.gain, plan, at, this.white);
+    this.lifeStrips.add(strip);
+    let left = strip.sources.length;
+    for (const source of strip.sources) {
+      source.addEventListener('ended', () => {
+        left -= 1;
+        if (left > 0) return;
+        this.lifeStrips.delete(strip);
+        try { strip.gain.disconnect(); } catch { /* already gone */ }
+      });
+    }
+    return true;
+  }
+
+  // A show is starting (or the place changes): fade the life sounds away in
+  // about a third of a second, then stop them. No sound outlives its event.
+  hushLife() {
+    if (!this.ctx || !this.lifeStrips) return;
+    const t = this.ctx.currentTime;
+    for (const strip of this.lifeStrips) {
+      strip.gain.gain.cancelScheduledValues(t);
+      strip.gain.gain.setValueAtTime(1, t);
+      strip.gain.gain.linearRampToValueAtTime(0, t + 0.3);
+      for (const source of strip.sources) { try { source.stop(t + 0.35); } catch { /* not started or already stopped */ } }
+    }
+    this.lifeGate.clear();
   }
 }

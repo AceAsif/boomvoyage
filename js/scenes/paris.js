@@ -6,7 +6,7 @@
 // The tower is drawn as a plain warm-gold lit silhouette with a hint of iron
 // lattice. It does not try to copy the real tower's own light show.
 
-import { towerRow, lamp, rng, shifted, haze } from './kit.js';
+import { towerRow, lamp, rng, shifted, haze, glint, crossing, vessel, afloat } from './kit.js';
 
 const WARM = '#ffd9a0';
 const QUAY = 8;        // height of the river wall, where the city stands
@@ -347,6 +347,101 @@ function rig(v) {
   return { tower, top };
 }
 
+// ---------- life between shows ----------
+// Small things that happen while the countdown runs (see js/life.js).
+
+const life = [
+  {
+    // A long sightseeing boat, all windows lit, crossing under the bridge.
+    id: 'bateau', group: 'water', layer: 'water', weight: 2, duration: [26, 34], sound: 'horn',
+    setup: (r) => ({ depth: 0.08 + r() * 0.12 }),
+    draw(ctx, v, e) {
+      const s = v.S * (1.4 + e.p.depth * 2.4);
+      vessel(ctx, crossing(v, e, 50 * s), afloat(v, e.p.depth, e, 0.4), s, {
+        dir: e.dir, length: 48, decks: 1, hull: '#0b0c20', stripe: '#e8d9b0', cabin: '#1a1a36', windows: '#ffe2a8', lights: '#fff0c8',
+      });
+    },
+  },
+  {
+    // A small boat with one lantern, drifting a short way downstream.
+    id: 'barque', group: 'water', layer: 'water', duration: [18, 26], sound: 'water',
+    setup: (r) => ({ depth: 0.45 + r() * 0.2, from: 0.12 + r() * 0.45 }),
+    draw(ctx, v, e) {
+      const s = v.S * (1.2 + e.p.depth * 2);
+      const start = e.dir > 0 ? e.p.from : 1 - e.p.from;
+      vessel(ctx, v.w * (start + e.dir * 0.26 * e.u), afloat(v, e.p.depth, e, 1.1), s, { dir: e.dir, length: 12, decks: 0, mast: true, hull: '#070818', lights: '#ffd9a0' });
+    },
+  },
+  {
+    // A soft sparkle on the iron: a few dozen small lights coming and going.
+    // This is our own simple effect, much quieter than the fireworks act.
+    // With reduce motion the lights stay on and do not twinkle.
+    id: 'sparkle', group: 'lights', layer: 'land', duration: [12, 18], sound: 'chime',
+    setup: (r) => {
+      const points = [];
+      while (points.length < 44) {
+        const y = 26 + r() * 214;
+        const out = outer(y), inn = gap(y);
+        if (out - inn < 1.5) continue;
+        points.push({ x: (r() < 0.5 ? -1 : 1) * (inn + r() * (out - inn)), y, speed: 1.2 + r() * 1.6, phase: r() * 6.3 });
+      }
+      return points;
+    },
+    draw(ctx, v, e) {
+      const size = Math.max(1, 1.1 * v.S);
+      for (const p of e.p) {
+        const k = e.calm ? 0.4 : Math.pow(Math.max(0, Math.sin(e.t * p.speed + p.phase)), 4);
+        if (k > 0.03) glint(ctx, v.px(p.x), v.py(QUAY + p.y), size, '#fff6dc', k * 0.9);
+      }
+    },
+  },
+  {
+    // A few birds crossing the evening sky (they glide with reduce motion).
+    id: 'birds', layer: 'sky', duration: [16, 22],
+    setup: (r) => ({
+      y: 0.34 + r() * 0.3, drift: (r() - 0.5) * 0.1,
+      flock: Array.from({ length: 5 + Math.floor(r() * 3) }, (_, i) => ({ dx: -i * 8 - r() * 5, dy: (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 3.5 + r() * 2.5, phase: r() * 6.3 })),
+    }),
+    draw(ctx, v, e) {
+      const S = Math.max(v.S, 0.8);
+      const x0 = crossing(v, e, 80 * S), y0 = v.hz * (e.p.y + e.p.drift * e.u);
+      ctx.strokeStyle = 'rgba(226,208,232,0.6)';
+      ctx.lineWidth = Math.max(0.8, 0.7 * S);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (const b of e.p.flock) {
+        const x = x0 + e.dir * b.dx * S, y = y0 + b.dy * S;
+        const lift = (e.calm ? 0.35 : Math.sin(e.t * 6.5 + b.phase)) * 1.5 * S;
+        ctx.moveTo(x - 3 * S, y - lift);
+        ctx.lineTo(x, y);
+        ctx.lineTo(x + 3 * S, y - lift);
+      }
+      ctx.stroke();
+    },
+  },
+  {
+    // A thin rose cloud drifting slowly, high up.
+    id: 'cloud', layer: 'sky', duration: [20, 28],
+    setup: (r) => ({ y: 0.14 + r() * 0.3, from: 0.2 + r() * 0.4, size: 0.16 + r() * 0.1 }),
+    draw(ctx, v, e) {
+      const rx = Math.max(110, v.w * e.p.size);
+      const start = e.dir > 0 ? e.p.from : 1 - e.p.from;
+      ctx.save();
+      ctx.translate(v.w * (start + e.dir * 0.22 * e.u), v.hz * e.p.y);
+      ctx.scale(1, 0.085);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      g.addColorStop(0, 'rgba(255,186,200,0.2)');
+      g.addColorStop(1, 'rgba(255,186,200,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, rx, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    },
+  },
+];
+
 export default {
   id: 'paris',
   name: 'Paris',
@@ -370,6 +465,7 @@ export default {
   drawSkyline,
   drawWater,
   rig,
+  life,
 
   show: {
     intervalSeconds: 120,

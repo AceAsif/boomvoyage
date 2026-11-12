@@ -71,6 +71,9 @@
       </div>
 
       <div class="controls">
+        <button id="snapBtn" class="icon" type="button" aria-label="Save a postcard of this sky" title="Postcard (P)">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4.5 8.5h3l1.4-2.2h6.2l1.4 2.2h3a1.5 1.5 0 011.5 1.5v7.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5V10a1.5 1.5 0 011.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="13.4" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
         <button id="shareBtn" class="icon" type="button" aria-label="Copy link to this show" title="Copy link to this show">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10.2 13.8a3.6 3.6 0 005.1 0l3-3a3.6 3.6 0 00-5.1-5.1l-1.1 1.1M13.8 10.2a3.6 3.6 0 00-5.1 0l-3 3a3.6 3.6 0 005.1 5.1l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -78,10 +81,18 @@
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 20h6M12 16.5V20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         </button>
         <button id="launchBtn" class="pill" type="button">Launch now</button>
+        <!-- Sound: the mute button, and a volume slider that opens above it
+             (on hover or keyboard focus; on a phone, after a tap on the button). -->
+        <div id="vol" class="vol">
+        <div id="volPop" class="vol-pop">
+          <label class="vol-label" for="volume">Volume</label>
+          <input id="volume" class="vol-range" type="range" min="0" max="100" step="5" value="100" aria-label="Volume" aria-valuetext="100 percent">
+        </div>
         <button id="muteBtn" class="icon" type="button" aria-pressed="false" aria-label="Mute sound" title="Mute (M)">
           <svg class="i-on" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4.2 4.2 0 010 6M18 6.5a7.8 7.8 0 010 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           <svg class="i-off" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         </button>
+        </div>
         <button id="fsBtn" class="icon" type="button" aria-label="Fullscreen" title="Fullscreen (F)">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 9.5V5h4.5M14.5 5H19v4.5M19 14.5V19h-4.5M9.5 19H5v-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>

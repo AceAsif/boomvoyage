@@ -10,6 +10,8 @@ import { parseLink, buildShareLink } from './link.js';
 import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
 import { createLife } from './life.js';
+import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
+import { drawPostcard, postcardCaption, postcardFileName, postcardRoute } from './postcard.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -154,18 +156,43 @@ engine.on('waterfall', (e) => sound.waterfall({ pan: engine.pan(e.x), dur: e.dur
 
 function renderMute() {
   const btn = $('muteBtn');
-  btn.setAttribute('aria-pressed', String(sound.muted));
-  btn.setAttribute('aria-label', sound.muted ? 'Turn sound on' : 'Mute sound');
-  btn.title = sound.muted ? 'Sound on (M)' : 'Mute (M)';
-  const note = sound.muted
+  // "Silent" is muted, or the volume slider at 0: both look and act the same.
+  const silent = sound.silent;
+  btn.setAttribute('aria-pressed', String(silent));
+  btn.setAttribute('aria-label', silent ? 'Turn sound on' : 'Mute sound');
+  btn.title = silent ? 'Sound on (M)' : 'Mute (M)';
+  const slider = $('volume');
+  const percent = silent ? 0 : toPercent(sound.volume);
+  slider.value = String(percent);
+  slider.setAttribute('aria-valuetext', sound.muted ? 'Muted' : `${percent} percent`);
+  const note = silent
     ? 'Sound is muted. You can turn it on at any time.'
     : 'Sound is on. You can mute it at any time.';
   $('startNote').textContent = ambient ? `${note} Ambient mode: tap or press Esc to leave it.` : note;
 }
 
-function toggleMute() {
-  sound.setMuted(!sound.muted);
+// Volume and mute. The rules are in js/volume.js; here they are applied.
+function applySound(next) {
+  if (next.muted !== sound.muted) sound.setMuted(next.muted);
+  if (next.volume !== sound.volume) sound.setVolume(next.volume);
   renderMute();
+}
+
+function toggleMute() {
+  applySound(toggleSound({ volume: sound.volume, muted: sound.muted }));
+}
+
+// On a phone there is no hover, so a tap on the mute button also opens the
+// slider for a few seconds. A tap anywhere else closes it.
+let volTimer = 0;
+function openVolume() {
+  $('vol').classList.add('is-open');
+  clearTimeout(volTimer);
+  volTimer = setTimeout(closeVolume, 4000);
+}
+function closeVolume() {
+  clearTimeout(volTimer);
+  $('vol').classList.remove('is-open');
 }
 
 // ---------- scenes ----------
@@ -288,6 +315,62 @@ async function shareLink() {
   else showLinkBox(url);
 }
 
+// ---------- postcard ----------
+
+// A picture of the sky as it is at this moment, on a card with a caption.
+// Everything happens here, on the press of the button: the show itself
+// never does any extra work for it.
+function makePostcard() {
+  const css = getComputedStyle(document.documentElement);
+  const info = { name: scene.name, country: scene.country, showNo: showCount, date: new Date() };
+  const fonts = { display: css.getPropertyValue('--display').trim(), text: css.getPropertyValue('--text').trim() };
+  return { card: drawPostcard(canvas, info, fonts), caption: postcardCaption(info), fileName: postcardFileName({ id: scene.id, showNo: showCount }) };
+}
+
+function download(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+let snapping = false;
+async function savePostcard() {
+  if (!started || snapping) return;
+  snapping = true;
+  $('snapBtn').disabled = true;
+  try {
+    const { card, caption, fileName } = makePostcard();
+    const blob = await new Promise((done) => card.toBlob(done, 'image/png'));
+    if (!blob) throw new Error('no picture');
+    // Phones: the share sheet, if it can take a picture file.
+    const file = typeof File === 'function' ? new File([blob], fileName, { type: 'image/png' }) : null;
+    const canShareFiles = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    if (postcardRoute({ canShareFiles, touch }) === 'share') {
+      try {
+        await navigator.share({ files: [file], title: caption });
+        toast('Postcard shared');
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;   // the share sheet was closed: nothing to say
+        // any other problem: fall through and download it instead
+      }
+    }
+    download(blob, fileName);
+    toast('Postcard saved');
+  } catch {
+    toast('Could not make the postcard');
+  } finally {
+    snapping = false;
+    $('snapBtn').disabled = false;
+  }
+}
+
 // ---------- ambient (TV) mode ----------
 
 // Keep the screen awake only while ambient mode is on and the show has started.
@@ -363,7 +446,7 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock, get life() { return life; } };
+window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; } };
 
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).
@@ -435,8 +518,17 @@ $('launchBtn').addEventListener('click', () => {
   btn.disabled = true;
   setTimeout(() => { btn.disabled = false; }, 1500);
 });
-$('muteBtn').addEventListener('click', toggleMute);
+$('muteBtn').addEventListener('click', () => {
+  toggleMute();
+  if (window.matchMedia('(hover: none), (pointer: coarse)').matches) openVolume();
+});
+$('volume').addEventListener('input', (e) => {
+  applySound(slideTo({ volume: sound.volume, muted: sound.muted }, Number(e.target.value) / 100));
+  if ($('vol').classList.contains('is-open')) openVolume();   // keep it open while it is used
+});
+$('volume').step = String(VOLUME_STEP * 100);
 $('shareBtn').addEventListener('click', shareLink);
+$('snapBtn').addEventListener('click', savePostcard);
 $('ambientBtn').addEventListener('click', () => setAmbient(true, { hint: true }));
 $('linkDone').addEventListener('click', closeLinkBox);
 $('fsBtn').addEventListener('click', toggleFullscreen);
@@ -446,12 +538,13 @@ document.addEventListener('webkitfullscreenchange', renderFullscreen);
 
 document.addEventListener('pointerdown', (e) => {
   if (menuOpen() && !e.target.closest('.switcher')) closeMenu();
+  if (!e.target.closest('.vol')) closeVolume();
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   wake();
-  if (e.key === 'Escape') { closeLinkBox(); closeMenu(); setAmbient(false); return; }
+  if (e.key === 'Escape') { closeLinkBox(); closeMenu(); closeVolume(); if (e.target === $('volume')) $('muteBtn').focus(); setAmbient(false); return; }
   if (e.target.closest && e.target.closest('input, textarea')) return; // typing or selecting: keys are not shortcuts
   if (!started) return; // Enter / Space on the start button are handled by the browser
   const onControl = e.target.closest && e.target.closest('button, [role="option"]');
@@ -460,11 +553,12 @@ document.addEventListener('keydown', (e) => {
   if (link.debug && ['1', '2', '3'].includes(key)) {
     const kind = ['horn', 'water', 'chime'][Number(key) - 1];
     const played = sound.life(kind, { now: true });
-    toast(played ? `Life sound: ${kind}` : sound.muted ? 'Sound is muted' : `Not played: ${kind} (two are already playing)`);
+    toast(played ? `Life sound: ${kind}` : sound.silent ? 'Sound is muted' : `Not played: ${kind} (two are already playing)`);
     return;
   }
   if (key === 'm') toggleMute();
   else if (key === 'f') toggleFullscreen();
+  else if (key === 'p' && !ambient) savePostcard();
   else if (key === 'a') setAmbient(!ambient, { hint: true });
   else if ((key === ' ' || key === 'enter') && !onControl) { e.preventDefault(); startShow(); }
 });

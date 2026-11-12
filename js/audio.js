@@ -9,9 +9,14 @@ import { LIFE_SOUNDS, lifeSoundPlan, playLifeSound, createSoundGate } from './li
 // The quiet sounds a life event may ask for (see js/lifesound.js).
 export { LIFE_SOUNDS };
 
+import { loadVolume, saveVolume, clampVolume, masterGain, isSilent } from './volume.js';
+
 const KEY = 'boomvoyage.muted';
 
-const LEVEL = 0.8; // master volume when not muted (leaves headroom for the finale)
+// The saved volume, or full volume. localStorage may be missing or blocked.
+function storedVolume() {
+  try { return loadVolume(localStorage); } catch { return loadVolume(null); }
+}
 
 export function loadMuted() {
   try { return localStorage.getItem(KEY) === '1'; } catch { return false; }
@@ -32,6 +37,7 @@ export class Sound {
   constructor() {
     this.ctx = null;
     this.muted = loadMuted();
+    this.volume = storedVolume();   // 0..1, see js/volume.js
     this.tweaks = DEFAULTS;
     this.recentBooms = [];
     this.crackles = 0;
@@ -49,7 +55,7 @@ export class Sound {
     const ctx = (this.ctx = new AC());
 
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : LEVEL;
+    this.master.gain.value = masterGain(this.volume, this.muted);
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16;
     comp.knee.value = 12;
@@ -98,8 +104,23 @@ export class Sound {
   setMuted(muted) {
     this.muted = !!muted;
     saveMuted(this.muted);
-    if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : LEVEL, this.ctx.currentTime, 0.04);
+    this.applyVolume();
   }
+
+  // The master volume, 0..1. Everything (fireworks, ambience, life sounds)
+  // runs through the master gain, so this one control reaches all of it.
+  setVolume(volume) {
+    this.volume = clampVolume(volume);
+    try { saveVolume(localStorage, this.volume); } catch { /* no storage: keep going */ }
+    this.applyVolume();
+  }
+
+  applyVolume() {
+    if (this.ctx) this.master.gain.setTargetAtTime(masterGain(this.volume, this.muted), this.ctx.currentTime, 0.04);
+  }
+
+  // True when nothing can be heard: muted, or the slider at 0.
+  get silent() { return isSilent(this.volume, this.muted); }
 
   suspend() { if (this.ctx && this.ctx.state === 'running') this.ctx.suspend(); }
   resume() { if (this.ctx && this.ctx.state !== 'running') this.ctx.resume(); }
@@ -155,7 +176,7 @@ export class Sound {
     return p;
   }
 
-  get live() { return this.ctx && this.ctx.state === 'running' && !this.muted; }
+  get live() { return this.ctx && this.ctx.state === 'running' && !isSilent(this.volume, this.muted); }
 
   // ---------- fireworks ----------
 

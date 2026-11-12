@@ -11,15 +11,22 @@ Last updated: 2026-11-12
   - `js/main.js`: wiring. The mute button works as before; if the slider is at 0 it brings full volume back. Moving the slider above 0 takes mute off. The mute icon shows "off" whenever nothing can be heard.
   - `tests/volume.test.js` (new, 11 tests). 216 pass.
   - Checked in real Chrome: full = gain 0.8, 40% = 0.128, saved as 0.4 and kept after reload, 0 = gain 0 and no sounds made, hidden in ambient mode, popover inside the screen at 1600x815 and 390x844. Looked at screenshots of both.
+- Step 2: Postcard snapshot.
+  - `js/postcard.js` (new): caption ("Paris · Show No. 4"), small line ("France · 12 November 2026"), file name (`boomvoyage-paris-show-4.png`), share-or-download choice, card sizes, and the drawing: the sky as it is on a paper-coloured card with a hairline, the BoomVoyage name and the caption. Wide pictures: name left, caption right. Tall pictures: words stacked in the middle. No personal names, no addresses.
+  - Size: the picture uses the canvas's own pixels (sharp on high-DPI screens), is never made bigger, and its longest side is at most 1920 pixels.
+  - `index.html`, `css/style.css`: camera button, first in the row. Phone portrait: the bottom grid has one more column (camera, link, ambient on the first row; Launch now, sound, fullscreen on the second). It is in the controls, so ambient mode hides it.
+  - `js/main.js`: on press (or key P) the card is made once. Phones and tablets with a share sheet that takes files get the share sheet ("Postcard shared"; closing the sheet says nothing); everything else downloads the PNG ("Postcard saved"). The show does no extra work for it.
+  - `tests/postcard.test.js` (new, 9 tests). 225 pass.
+  - Checked in real Chrome and Firefox at 1600x815 (pixel ratio 1.5), 390x844 (3) and 844x390 (2): the button saves a PNG with the right name in 56 to 77 ms (Chrome), shows "Postcard saved", is disabled while busy, is hidden in ambient mode, and all six controls fit without touching the clock. Looked at the postcards from Paris (wide) and London (tall).
 
 ## In progress
 - nothing
 
 ## Next step
-- Step 2: Postcard snapshot: camera button, `js/postcard.js` (caption, file name, size, drawing), share sheet on phones or download, "Postcard saved" message, phone layout with one more button, tests, frame rate after.
 - Step 3: README, final report.
 
 ## Measurements
+- AFTER (this branch, same window): Chrome Sydney and Paris quiet 144 fps, heavy show 144 fps. Firefox quiet 144 fps; heavy show Sydney 69 and 73 fps, Paris 68 and 73 fps. Same as before within Firefox's usual swing (see the line below): nothing was added to the frame loop, the volume is one number on the master gain and the postcard only runs on a press.
 - BEFORE (main; window 1600x815, pixel ratio 1.5, 144 Hz): Chrome Sydney quiet 144 fps, heavy show 144 fps. Firefox quiet 144 fps; heavy show Sydney 70 and 74 fps, Paris 87 and 104 fps (Firefox swings between about 73 and 100 from run to run, as noted in earlier tasks).
 
 ## Decisions

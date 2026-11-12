@@ -11,6 +11,7 @@ import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
 import { createLife } from './life.js';
 import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
+import { drawPostcard, postcardCaption, postcardFileName, postcardRoute } from './postcard.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -314,6 +315,62 @@ async function shareLink() {
   else showLinkBox(url);
 }
 
+// ---------- postcard ----------
+
+// A picture of the sky as it is at this moment, on a card with a caption.
+// Everything happens here, on the press of the button: the show itself
+// never does any extra work for it.
+function makePostcard() {
+  const css = getComputedStyle(document.documentElement);
+  const info = { name: scene.name, country: scene.country, showNo: showCount, date: new Date() };
+  const fonts = { display: css.getPropertyValue('--display').trim(), text: css.getPropertyValue('--text').trim() };
+  return { card: drawPostcard(canvas, info, fonts), caption: postcardCaption(info), fileName: postcardFileName({ id: scene.id, showNo: showCount }) };
+}
+
+function download(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+let snapping = false;
+async function savePostcard() {
+  if (!started || snapping) return;
+  snapping = true;
+  $('snapBtn').disabled = true;
+  try {
+    const { card, caption, fileName } = makePostcard();
+    const blob = await new Promise((done) => card.toBlob(done, 'image/png'));
+    if (!blob) throw new Error('no picture');
+    // Phones: the share sheet, if it can take a picture file.
+    const file = typeof File === 'function' ? new File([blob], fileName, { type: 'image/png' }) : null;
+    const canShareFiles = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    if (postcardRoute({ canShareFiles, touch }) === 'share') {
+      try {
+        await navigator.share({ files: [file], title: caption });
+        toast('Postcard shared');
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;   // the share sheet was closed: nothing to say
+        // any other problem: fall through and download it instead
+      }
+    }
+    download(blob, fileName);
+    toast('Postcard saved');
+  } catch {
+    toast('Could not make the postcard');
+  } finally {
+    snapping = false;
+    $('snapBtn').disabled = false;
+  }
+}
+
 // ---------- ambient (TV) mode ----------
 
 // Keep the screen awake only while ambient mode is on and the show has started.
@@ -389,7 +446,7 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock, get life() { return life; } };
+window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; } };
 
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).
@@ -471,6 +528,7 @@ $('volume').addEventListener('input', (e) => {
 });
 $('volume').step = String(VOLUME_STEP * 100);
 $('shareBtn').addEventListener('click', shareLink);
+$('snapBtn').addEventListener('click', savePostcard);
 $('ambientBtn').addEventListener('click', () => setAmbient(true, { hint: true }));
 $('linkDone').addEventListener('click', closeLinkBox);
 $('fsBtn').addEventListener('click', toggleFullscreen);
@@ -500,6 +558,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (key === 'm') toggleMute();
   else if (key === 'f') toggleFullscreen();
+  else if (key === 'p' && !ambient) savePostcard();
   else if (key === 'a') setAmbient(!ambient, { hint: true });
   else if ((key === ' ' || key === 'enter') && !onControl) { e.preventDefault(); startShow(); }
 });

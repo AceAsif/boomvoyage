@@ -240,6 +240,7 @@ button:focus-visible {
 .pill:disabled { opacity: 0.45; cursor: default; background: var(--glass); color: var(--ember); }
 .icon { width: 46px; display: inline-grid; place-items: center; }
 .icon:hover { border-color: var(--ember); color: var(--ember); }
+.icon:disabled { opacity: 0.45; cursor: default; }
 .icon .i-off { display: none; }
 .icon[aria-pressed="true"] .i-on { display: none; }
 .icon[aria-pressed="true"] .i-off { display: block; }
@@ -494,23 +495,24 @@ body.ambient #stage { cursor: none; }
 
 @media (max-width: 560px) {
   .brand-tag { display: none; }
-  /* The bottom is a small grid: the clock and the two extra buttons on the
+  /* The bottom is a small grid: the clock and the three extra buttons on the
      first row, then Launch now, mute and fullscreen on the second row, so
      everything stays under the thumb. */
   .bottom {
     display: grid;
-    grid-template-columns: 1fr 46px 46px;
+    grid-template-columns: 1fr 46px 46px 46px;
     column-gap: 10px;
     row-gap: 12px;
     align-items: end;
   }
   .controls { display: contents; }
   .clock { grid-column: 1; grid-row: 1; min-width: 0; }
-  #shareBtn { grid-column: 2; grid-row: 1; }
-  #ambientBtn { grid-column: 3; grid-row: 1; }
-  #launchBtn { grid-column: 1; grid-row: 2; justify-self: end; }
-  .vol { grid-column: 2; grid-row: 2; }
-  #fsBtn { grid-column: 3; grid-row: 2; }
+  #snapBtn { grid-column: 2; grid-row: 1; }
+  #shareBtn { grid-column: 3; grid-row: 1; }
+  #ambientBtn { grid-column: 4; grid-row: 1; }
+  #launchBtn { grid-column: 1 / 3; grid-row: 2; justify-self: end; }
+  .vol { grid-column: 3; grid-row: 2; }
+  #fsBtn { grid-column: 4; grid-row: 2; }
   .pill { padding: 0 16px; letter-spacing: 0.14em; }
   .scene-btn { padding: 0 13px; font-size: 12px; }
   /* On a narrow phone the harbour name may shorten with "…" instead of leaving the screen. */

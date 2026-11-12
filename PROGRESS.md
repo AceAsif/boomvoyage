@@ -23,7 +23,7 @@ Last updated: 2026-11-12
 - Step 6: Checked in real browsers.
   - Zoomed pictures after: Sydney cars and windows are hidden by the sails (desktop and phone), London wheel light goes behind the bridge (phone).
   - "Backdrop then foreground" compared with the one-piece skyline, pixel by pixel, all four cities, 1600x815 and 390x844. Chrome: biggest difference 2 of 255 (one pixel 5). Firefox: 2 of 255, except Sydney 6 to 8 of 255 on up to 272 edge pixels. Not visible. First run found a real difference in London (clock hands had square ends in the halves, because a line style was carried over from the wheel); fixed.
-- Frame rate: Being measured (main and this branch back to back, Firefox and Chrome).
+- Frame rate: main and this branch measured back to back in real browsers (window 1600x815, pixel ratio 1.5, 144 Hz), all four cities. Chrome: quiet 144 fps, heavy show 144 fps, all life events forced on at once 144 fps, on main and on this branch. Firefox: quiet 144 fps and all life events on 144 fps (143.5 once on main), on both. Firefox heavy show: between 68 and 102 fps on main and on this branch alike. It is about 73 fps when the automatic quality step stays off and about 100 fps when it switches on, and which one happens changes from run to run on both (Paris, three pairs of runs: branch 80, 101, 73; main 98, 73, 73). No difference between main and this branch. No life event runs during a show, so the show draws the same single skyline picture as before.
 
 ## In progress
 - nothing

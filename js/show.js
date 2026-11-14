@@ -164,7 +164,62 @@ function chimes(c, t) {
   return 5.8;
 }
 
-export const EXTRA_MOVEMENTS = { fountain, palms, waltz, chimes };
+// Rows of quick small shells, like the bulbs running round a theatre sign.
+function marquee(c, t) {
+  for (let i = 0; i < 10; i++) {
+    const u = i / 9;
+    c.shell(t + i * 0.14, 0.1 + 0.8 * u, 0.34, i % 2 ? 'strobe' : 'peony', { size: 0.6, color: c.col(i) });
+    c.shell(t + 1.7 + i * 0.14, 0.9 - 0.8 * u, 0.56, i % 2 ? 'peony' : 'crackle', { size: 0.65, color: c.col(i + 1) });
+  }
+  [0.25, 0.5, 0.75].forEach((x, i) => c.shell(t + 3.5 + i * 0.18, x, 0.84, 'ring', { size: 1.15, color: c.col(i) }));
+  c.shell(t + 4.3, 0.5, 0.92, 'peony', { size: 1.4 });
+  return 5.6;
+}
+
+// Japanese style: great round chrysanthemums, one at a time, with room to
+// be looked at. One alone, then a pair, then one more above them all.
+function kiku(c, t) {
+  c.shell(t, 0.5, 0.9, 'chrys', { size: 1.55, whistle: true, color: c.col(0), color2: c.col(1) });
+  c.shell(t + 1.7, 0.29, 0.74, 'chrys', { size: 1.3, color: c.col(1), color2: c.col(2) });
+  c.shell(t + 1.7, 0.71, 0.74, 'chrys', { size: 1.3, color: c.col(1), color2: c.col(2) });
+  c.shell(t + 3.3, 0.5, 0.95, 'chrys', { size: 1.65, color: c.col(2), color2: c.col(0) });
+  c.shell(t + 4.3, 0.38, 0.48, 'peony', { size: 0.6, color: c.col(0) });
+  c.shell(t + 4.3, 0.62, 0.48, 'peony', { size: 0.6, color: c.col(0) });
+  return 5.9;
+}
+
+// Symmetrical pairs: every shell has a twin on the other side of the sky.
+// The pairs step outward and upward, and one shell in the middle closes.
+function pairs(c, t) {
+  const types = ['ring', 'chrys', 'peony', 'chrys', 'saturn'];
+  for (let i = 0; i < 5; i++) {
+    const d = 0.07 + 0.085 * i;
+    const o = { color: c.col(i), color2: c.col(i + 1), size: 0.8 + i * 0.1 };
+    c.shell(t + i * 0.62, 0.5 - d, 0.46 + 0.09 * i, types[i], o);
+    c.shell(t + i * 0.62, 0.5 + d, 0.46 + 0.09 * i, types[i], o);
+  }
+  c.shell(t + 3.7, 0.5, 0.94, 'chrys', { size: 1.45 });
+  return 5.7;
+}
+
+// A dragon: a winding line of small bursts crossing the sky, with a great
+// head at the end and two crackling pearls beside it.
+function dragon(c, t) {
+  const flip = c.r() < 0.5;
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1);
+    const x = 0.07 + 0.8 * (flip ? 1 - u : u);
+    c.shell(t + i * 0.17, x, 0.52 + 0.17 * Math.sin(u * Math.PI * 3), 'peony', { size: 0.5, color: c.col(i % 2) });
+  }
+  const head = flip ? 0.1 : 0.9;
+  c.shell(t + n * 0.17 + 0.2, head, 0.8, 'chrys', { size: 1.4, color: c.col(0), color2: c.col(1) });
+  c.shell(t + n * 0.17 + 0.9, head + (flip ? 0.16 : -0.16), 0.6, 'crackle', { size: 0.8 });
+  c.shell(t + n * 0.17 + 1.1, head + (flip ? 0.3 : -0.3), 0.74, 'crackle', { size: 0.8 });
+  return 5.6;
+}
+
+export const EXTRA_MOVEMENTS = { fountain, palms, waltz, chimes, marquee, kiku, pairs, dragon };
 const ALL_MOVEMENTS = { ...MOVEMENTS, ...EXTRA_MOVEMENTS };
 
 // ---------- other openings (a scene picks one with `show.opening`) ----------
@@ -196,7 +251,37 @@ function openingStrikes(c, t) {
   return 4.5;
 }
 
-const OPENINGS = { classic: opening, tower: openingTower, duet: openingDuet, strikes: openingStrikes };
+// A loud start: a fan of comets, two big peonies, three reports, a ring.
+function openingSalvo(c, t) {
+  [-0.5, -0.25, 0, 0.25, 0.5].forEach((angle, i) => c.add(t, 'comet', { x: 0.5, angle, speed: 0.95, color: c.col(i) }));
+  c.shell(t + 1.0, 0.3, 0.72, 'peony', { size: 1.2, whistle: true });
+  c.shell(t + 1.0, 0.7, 0.72, 'peony', { size: 1.2 });
+  [0.34, 0.5, 0.66].forEach((x, i) => c.shell(t + 2.2 + i * 0.16, x, 0.5, 'salute', { size: 0.9 }));
+  c.shell(t + 3.2, 0.5, 0.9, 'ring', { size: 1.35 });
+  return 4.5;
+}
+
+// One perfect shell alone in the sky, a pause, then a matching pair.
+function openingSingle(c, t) {
+  c.shell(t, 0.5, 0.93, 'chrys', { size: 1.6, whistle: true, color: c.col(0), color2: c.col(1) });
+  c.shell(t + 2.4, 0.3, 0.7, 'chrys', { size: 1.1, color: c.col(1) });
+  c.shell(t + 2.4, 0.7, 0.7, 'chrys', { size: 1.1, color: c.col(1) });
+  c.shell(t + 3.5, 0.5, 0.56, 'ring', { size: 0.9, color: c.col(2) });
+  return 4.5;
+}
+
+// Shells sweep across the harbour in one rising and falling arc, then palms.
+function openingSweep(c, t) {
+  for (let i = 0; i < 7; i++) {
+    const u = i / 6;
+    c.shell(t + i * 0.3, 0.1 + 0.8 * u, 0.44 + 0.42 * Math.sin(Math.PI * u), i % 2 ? 'ring' : 'peony', { size: 0.85, color: c.col(i), whistle: i === 0 });
+  }
+  c.shell(t + 2.9, 0.28, 0.66, 'palm', { size: 1.1 });
+  c.shell(t + 2.9, 0.72, 0.66, 'palm', { size: 1.1 });
+  return 4.5;
+}
+
+const OPENINGS = { classic: opening, tower: openingTower, duet: openingDuet, strikes: openingStrikes, salvo: openingSalvo, single: openingSingle, sweep: openingSweep };
 
 // The quiet act: a curtain of sparks from the scene's waterfall line
 // (in Sydney, the bridge deck), with slow white shells floating above it.
@@ -262,9 +347,46 @@ function wheel(c, t) {
   return 9.4;
 }
 
-export const SIGNATURES = { spire, glitter, wheel };
+// A "star mine": quick fans of comets from a row of points along a bridge,
+// always in mirrored pairs, first from the outside in, then from the inside
+// out, then all at once, with great twin shells above.
+function starmine(c, t) {
+  const n = 10;
+  for (let k = 0; k < 5; k++) {
+    for (const only of [k, n - 1 - k]) c.add(t + k * 0.28, 'crown', { set: 'bridge', only, speed: 0.34, color: c.col(0) });
+    for (const only of [4 - k, 5 + k]) c.add(t + 1.8 + k * 0.22, 'crown', { set: 'bridge', only, speed: 0.42, color: c.col(1) });
+  }
+  c.add(t + 3.2, 'crown', { set: 'bridge', speed: 0.5, color: c.col(2) });
+  c.add(t + 3.3, 'at', { set: 'towers', type: 'chrys', size: 0.45, color: c.col(0) });
+  c.shell(t + 3.6, 0.3, 0.86, 'chrys', { size: 1.4, color: c.col(0), color2: c.col(1) });
+  c.shell(t + 3.6, 0.7, 0.86, 'chrys', { size: 1.4, color: c.col(0), color2: c.col(1) });
+  c.add(t + 5.0, 'crown', { set: 'bridge', step: 2, offset: 0, speed: 0.46, color: c.col(1) });
+  c.add(t + 5.4, 'crown', { set: 'bridge', step: 2, offset: 1, speed: 0.46, color: c.col(2) });
+  c.add(t + 6.0, 'crown', { set: 'bridge', speed: 0.56, color: c.col(0) });
+  c.add(t + 6.1, 'at', { set: 'towers', type: 'ring', size: 0.5, color: c.col(1) });
+  c.shell(t + 6.6, 0.5, 0.96, 'chrys', { size: 1.6 });
+  c.shell(t + 7.7, 0.5, 0.96, 'kamuro', { size: 1.3 });
+  return 9.4;
+}
+
+// Beams of light sweep the sky from the rooftops, first together, then
+// crossing each other, while slow rings open between them.
+function beams(c, t) {
+  c.add(t, 'beams', { set: 'roofs', dur: 8.8, colors: [c.col(0), c.col(1), c.col(2)] });
+  c.shell(t + 1.2, 0.3, 0.86, 'ring', { size: 1.2 });
+  c.shell(t + 2.3, 0.7, 0.86, 'ring', { size: 1.2 });
+  c.shell(t + 4.0, 0.36, 0.7, 'peony', { size: 1.0 });
+  c.shell(t + 4.0, 0.64, 0.7, 'peony', { size: 1.0 });
+  c.shell(t + 5.6, 0.5, 0.94, 'chrys', { size: 1.4 });
+  c.shell(t + 6.8, 0.26, 0.6, 'crackle', { size: 0.9 });
+  c.shell(t + 6.8, 0.74, 0.6, 'crackle', { size: 0.9 });
+  c.add(t + 7.7, 'at', { set: 'roofs', type: 'peony', size: 0.3, color: c.col(0) });
+  return 9.4;
+}
+
+export const SIGNATURES = { spire, glitter, wheel, starmine, beams };
 // The rig() anchor sets each signature act needs from its scene.
-export const SIGNATURE_RIG = { spire: ['tiers', 'spire'], glitter: ['tower', 'top'], wheel: ['wheel', 'hub'] };
+export const SIGNATURE_RIG = { spire: ['tiers', 'spire'], glitter: ['tower', 'top'], wheel: ['wheel', 'hub'], starmine: ['bridge', 'towers'], beams: ['roofs'] };
 
 // Faster and faster, then gold across the whole sky, then one last shell.
 function finale(c, t, seconds) {
@@ -301,10 +423,16 @@ export const ACT_LABELS = {
   palms: 'Palms',
   waltz: 'Waltz',
   chimes: 'Chimes',
+  marquee: 'Marquee',
+  kiku: 'Chrysanthemum',
+  pairs: 'Pairs',
+  dragon: 'Dragon',
   waterfall: 'Waterfall',
   spire: 'The Spire',
   glitter: 'Glitter',
   wheel: 'The Wheel',
+  starmine: 'Star Mine',
+  beams: 'Sky Beams',
   finale: 'Finale',
 };
 

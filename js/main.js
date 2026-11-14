@@ -5,7 +5,7 @@
 import { Engine } from './engine.js';
 import { scenes, getScene } from './scenes/index.js';
 import { buildShow, createRunner, actAt } from './show.js';
-import { Sound } from './audio.js';
+import { Sound, LIFE_SOUNDS } from './audio.js';
 import { parseLink, buildShareLink } from './link.js';
 import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
@@ -461,7 +461,7 @@ if (link.debug) {
       + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
       + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
       + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
-      + 'life sounds: press 1 horn · 2 water · 3 chime';
+      + `life sounds: press ${LIFE_SOUNDS.map((kind, i) => `${i + 1} ${kind}`).join(' · ')}`;
   }, 500);
 }
 
@@ -550,8 +550,8 @@ document.addEventListener('keydown', (e) => {
   const onControl = e.target.closest && e.target.closest('button, [role="option"]');
   const key = e.key.toLowerCase();
   // ?debug=1 only: hear each life sound at once, without waiting for its event.
-  if (link.debug && ['1', '2', '3'].includes(key)) {
-    const kind = ['horn', 'water', 'chime'][Number(key) - 1];
+  if (link.debug && /^[1-9]$/.test(key) && LIFE_SOUNDS[Number(key) - 1]) {
+    const kind = LIFE_SOUNDS[Number(key) - 1];
     const played = sound.life(kind, { now: true });
     toast(played ? `Life sound: ${kind}` : sound.silent ? 'Sound is muted' : `Not played: ${kind} (two are already playing)`);
     return;

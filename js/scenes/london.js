@@ -492,6 +492,7 @@ export default {
   id: 'london',
   name: 'London',
   country: 'UK',
+  timeZone: 'Europe/London',   // for New Year's Eve mode: when midnight really is here
   tagline: 'London on the Thames, tonight and every two minutes.',
 
   horizon: { landscape: 0.74, portrait: 0.7 },

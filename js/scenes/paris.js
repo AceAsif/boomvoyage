@@ -457,6 +457,7 @@ export default {
   id: 'paris',
   name: 'Paris',
   country: 'France',
+  timeZone: 'Europe/Paris',   // for New Year's Eve mode: when midnight really is here
   tagline: 'Paris on the Seine, tonight and every two minutes.',
 
   horizon: { landscape: 0.74, portrait: 0.7 },

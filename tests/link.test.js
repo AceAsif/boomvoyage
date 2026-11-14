@@ -9,7 +9,7 @@ test('slugify makes safe ids from theme names', () => {
 });
 
 test('an empty or missing query gives all defaults', () => {
-  const none = { scene: null, seed: null, theme: null, ambient: false, debug: false };
+  const none = { scene: null, seed: null, theme: null, ambient: false, debug: false, voyage: null, clock: null };
   assert.deepEqual(parseLink(''), none);
   assert.deepEqual(parseLink(), none);
   assert.deepEqual(parseLink('?'), none);
@@ -19,7 +19,7 @@ test('an empty or missing query gives all defaults', () => {
 test('a full share link is read correctly', () => {
   assert.deepEqual(
     parseLink('?scene=sydney&seed=3735928559&theme=ember-jade'),
-    { scene: 'sydney', seed: 3735928559, theme: 'ember-jade', ambient: false, debug: false },
+    { scene: 'sydney', seed: 3735928559, theme: 'ember-jade', ambient: false, debug: false, voyage: null, clock: null },
   );
 });
 
@@ -61,7 +61,7 @@ test('ambient: on for 1, true, yes, on and a bare flag; off for 0, false, no, of
 test('buildShareLink makes a link that parseLink reads back', () => {
   const link = buildShareLink('https://example.github.io/boomvoyage/', { scene: 'sydney', seed: 123456, theme: 'waratah' });
   assert.equal(link, 'https://example.github.io/boomvoyage/?scene=sydney&seed=123456&theme=waratah');
-  assert.deepEqual(parseLink(new URL(link).search), { scene: 'sydney', seed: 123456, theme: 'waratah', ambient: false, debug: false });
+  assert.deepEqual(parseLink(new URL(link).search), { scene: 'sydney', seed: 123456, theme: 'waratah', ambient: false, debug: false, voyage: null, clock: null });
 });
 
 test('buildShareLink drops the old query string and hash, and keeps the folder', () => {
@@ -80,5 +80,5 @@ test('debug is an on/off option like ambient', () => {
   assert.equal(parseLink('?debug').debug, true);
   assert.equal(parseLink('?debug=0').debug, false);
   assert.equal(parseLink('?ambient=1').debug, false);
-  assert.deepEqual(parseLink('?ambient=1&debug=1'), { scene: null, seed: null, theme: null, ambient: true, debug: true });
+  assert.deepEqual(parseLink('?ambient=1&debug=1'), { scene: null, seed: null, theme: null, ambient: true, debug: true, voyage: null, clock: null });
 });

@@ -487,6 +487,7 @@ export default {
   id: 'sydney',
   name: 'Sydney Harbour',
   country: 'Australia',
+  timeZone: 'Australia/Sydney',   // for New Year's Eve mode: when midnight really is here
   tagline: 'Sydney Harbour, tonight and every two minutes.',
 
   // Where the waterline sits (share of screen height), and which scene x is

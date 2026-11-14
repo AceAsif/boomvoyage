@@ -11,7 +11,7 @@
 // - every fade in and fade out takes at least 30 ms, so nothing clicks;
 // - every tone or noise is stopped shortly after its volume reaches 0.
 
-export const LIFE_SOUNDS = ['horn', 'water', 'chime'];
+export const LIFE_SOUNDS = ['horn', 'water', 'chime', 'bell', 'furin', 'gong', 'sail'];
 export const LIFE_SOUND_LIMIT = 2;      // how many may sound at the same time
 export const MIN_FADE = 0.03;           // seconds
 
@@ -53,6 +53,46 @@ export function lifeSoundPlan(kind, rand = Math.random) {
       kind, length: 4.1,
       voices: [{ source: 'noise', filter: { type: 'bandpass', freq: 560 + rand() * 120, q: 0.7 }, start: 0, stop: 4.1, env }],
     };
+  }
+  if (kind === 'bell') {
+    // A harbour bell buoy: two soft strikes of one bell.
+    const base = 600 + rand() * 50;
+    const voices = [];
+    for (const at of [0, 1.25]) {
+      for (const [mult, top] of [[1, 0.012], [2.4, 0.005], [3.1, 0.003]]) {
+        voices.push({ source: 'tone', wave: 'sine', freq: base * mult, start: at, stop: at + 1.9, env: [[at, 0], [at + MIN_FADE, top], [at + 0.6, top * 0.3], [at + 1.8, 0]] });
+      }
+    }
+    return { kind, length: 3.3, voices };
+  }
+  if (kind === 'furin') {
+    // A glass wind chime: a few high clear notes, unevenly spaced.
+    const notes = [2093, 2637, 2349, 3136];
+    let at = 0;
+    const voices = notes.map((freq, i) => {
+      if (i) at += 0.16 + rand() * 0.3;
+      return { source: 'tone', wave: 'sine', freq, start: at, stop: at + 1.3, env: [[at, 0], [at + MIN_FADE, 0.006], [at + 0.25, 0.002], [at + 1.2, 0]] };
+    });
+    return { kind, length: at + 1.4, voices };
+  }
+  if (kind === 'gong' ) {
+    // A small gong, far away: one soft strike with a long tail.
+    const base = 176 + rand() * 16;
+    return {
+      kind, length: 3.8,
+      voices: [[1, 0.03], [1.51, 0.018], [2.02, 0.012], [3.0, 0.006]].map(([mult, top]) => (
+        { source: 'tone', wave: 'sine', freq: base * mult, start: 0, stop: 3.7, env: [[0, 0], [0.04, top], [0.8, top * 0.45], [3.6, 0]] }
+      )),
+    };
+  }
+  if (kind === 'sail') {
+    // Setting sail (voyage mode): a long soft breath of wind, and two quiet
+    // notes a fifth apart that rise and fall with it.
+    const wind = { source: 'noise', filter: { type: 'bandpass', freq: 380 + rand() * 60, q: 0.5 }, start: 0, stop: 4.3, env: [[0, 0], [1.7, 0.028], [2.6, 0.02], [4.2, 0]] };
+    const notes = [392, 587.3].map((freq, i) => (
+      { source: 'tone', wave: 'sine', freq, start: 0.3 * i, stop: 4.1, env: [[0.3 * i, 0], [1.4 + 0.3 * i, 0.007], [2.6, 0.005], [4, 0]] }
+    ));
+    return { kind, length: 4.4, voices: [wind, ...notes] };
   }
   return null;
 }

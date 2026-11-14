@@ -62,6 +62,7 @@ export class Engine {
     this.rockets = [];
     this.falls = [];
     this.sparkles = [];   // glitter emitters (see fire 'glitter')
+    this.beams = [];      // sweeping light beams in the sky (see fire 'beams')
     this.frontUntil = 0;  // front particles may be alive until this time
     this.twinkles = [];
     this.light = { x: 0, y: 0, r: 255, g: 220, b: 180, i: 0 };
@@ -113,19 +114,20 @@ export class Engine {
     this.rockets.length = 0;
     this.falls.length = 0;
     this.sparkles.length = 0;
+    this.beams.length = 0;
     this.light.i = 0;
     if (this.view) this.wipeFx();
   }
 
   get busy() {
-    return this.P.count > 0 || this.rockets.length > 0 || this.falls.length > 0 || this.sparkles.length > 0;
+    return this.P.count > 0 || this.rockets.length > 0 || this.falls.length > 0 || this.sparkles.length > 0 || this.beams.length > 0;
   }
 
   // ---------- layout ----------
 
-  resize() {
-    const scene = this.scene;
-    if (!scene) return;
+  // The view of a scene on the window as it is now: sizes, the horizon, and
+  // the two functions that turn scene units into pixels.
+  viewFor(scene) {
     const w = Math.max(1, window.innerWidth);
     const h = Math.max(1, window.innerHeight);
     const small = Math.min(w, h) < 600;
@@ -142,19 +144,88 @@ export class Engine {
     const fx = typeof scene.focusX === 'number'
       ? scene.focusX
       : (portrait ? scene.focusX?.portrait : scene.focusX?.landscape) ?? 0;
-
-    this.view = {
-      w, h, dpr, hz, S, portrait,
+    return {
+      w, h, dpr, hz, S, portrait, small,
       // Reference size for bursts. A tall phone sky gets bigger fireworks.
       U: portrait ? Math.min(w * 2, hz * 1.5) : Math.min(w * 1.6, hz * 1.5),
       px: (x) => w / 2 + (x - fx) * S, // scene x (-500..500) to pixels
       py: (y) => hz - y * S,      // scene y (up from the waterline) to pixels
     };
-    this.U = this.view.U;
+  }
+
+  // Takes a view into use: everything that is sized by it follows.
+  useView(view) {
+    this.view = view;
+    this.U = view.U;
     this.G = 0.085 * this.U;
-    this.q = this.calm ? 0.45 : small ? 0.65 : 1;
-    this.P.max = this.calm ? 500 : small ? 1000 : 1800;
+    this.q = this.calm ? 0.45 : view.small ? 0.65 : 1;
+    this.P.max = this.calm ? 500 : view.small ? 1000 : 1800;
     this.P.scale = Math.max(0.75, Math.min(1.4, this.U / 1000));
+  }
+
+  // Paints another scene offscreen, in four small steps (sky, skyline, the
+  // lit skyline, water), so that it can later be shown without any painting
+  // at all: see adopt(). Voyage mode uses this to get the next city ready
+  // during the quiet minute, a step at a time, so no frame is dropped.
+  // Returns { scene, step(), ready }: call step() until ready is true.
+  prepare(scene) {
+    const p = Object.create(Engine.prototype);   // a painter with its own layers; it never draws to the screen
+    p.scene = scene;
+    p.calm = this.calm;
+    p.view = this.viewFor(scene);
+    p.sky = makeLayer();
+    p.land = makeLayer();
+    p.water = makeLayer();
+    p.lit = [makeLayer(), makeLayer(), makeLayer()];
+    p.litBand = { y: 0, h: 0 };
+    p.twinkles = [];
+    p.halves = null;
+    const { w, h, dpr } = p.view;
+    for (const layer of [p.sky, p.land, p.water]) {
+      layer.c.width = Math.round(w * dpr);
+      layer.c.height = Math.round(h * dpr);
+      layer.x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    p.rig = scene.rig ? scene.rig(p.view) : {};
+    const steps = [() => p.paintSky(), () => p.paintLand(), () => p.paintLit(), () => p.paintWater()];
+    return {
+      scene,
+      painter: p,
+      get ready() { return steps.length === 0; },
+      step() { const next = steps.shift(); if (next) next(); return steps.length === 0; },
+    };
+  }
+
+  // Shows a scene that prepare() has painted: its finished layers are taken
+  // over as they are. If it is not finished, or the window has changed size
+  // since, the scene is set the ordinary way instead. Returns true when the
+  // prepared pictures were used.
+  adopt(prepared) {
+    const p = prepared.painter;
+    const now = this.viewFor(prepared.scene);
+    if (!prepared.ready || now.w !== p.view.w || now.h !== p.view.h || now.dpr !== p.view.dpr) {
+      this.setScene(prepared.scene);
+      return false;
+    }
+    this.scene = prepared.scene;
+    this.clear();
+    this.useView(p.view);
+    this.sky = p.sky;
+    this.land = p.land;
+    this.water = p.water;
+    this.lit = p.lit;
+    this.litBand = p.litBand;
+    this.twinkles = p.twinkles;
+    this.rig = p.rig;
+    this.halves = null;
+    return true;
+  }
+
+  resize() {
+    const scene = this.scene;
+    if (!scene) return;
+    this.useView(this.viewFor(scene));
+    const { w, h, dpr } = this.view;
 
     for (const layer of [this, this.sky, this.land, this.water]) {
       const c = layer.c || layer.canvas;
@@ -366,8 +437,46 @@ export class Engine {
       this.twinkle(sp, dt);
     }
 
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      this.beams[i].t += dt;
+      if (this.beams[i].t >= this.beams[i].dur) this.beams.splice(i, 1);
+    }
+
     this.P.update(dt, this.G);
     this.light.i *= Math.pow(0.03, dt);
+  }
+
+  // Light beams from a set of anchor points, drawn into the sky behind the
+  // skyline. They start side by side and sweep together; as the act goes on
+  // every second beam falls out of step, so they end up crossing.
+  // A handful of see-through triangles per frame: cheap in every browser.
+  drawBeams(ctx) {
+    const len = this.U * 1.25;
+    for (const beam of this.beams) {
+      const k = Math.min(1, beam.t / 1.0, (beam.dur - beam.t) / 1.3);
+      if (k <= 0) continue;
+      const apart = Math.PI * Math.min(1, (beam.t / beam.dur) * 1.5);
+      const pace = this.calm ? 0.28 : 0.85;
+      const swing = this.calm ? 0.2 : 0.46;
+      for (let i = 0; i < beam.pts.length; i++) {
+        const p = beam.pts[i];
+        const a = (p.angle ?? 0) + swing * Math.sin(beam.t * pace + (i % 2) * apart + i * 0.35);
+        const dx = Math.sin(a), dy = -Math.cos(a);
+        const tx = p.x + dx * len, ty = p.y + dy * len;
+        const half = len * 0.03;
+        const c = beam.colors[i % beam.colors.length];
+        const g = ctx.createLinearGradient(p.x, p.y, tx, ty);
+        g.addColorStop(0, `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${0.36 * k})`);
+        g.addColorStop(1, `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(tx - dy * half, ty + dx * half);
+        ctx.lineTo(tx + dy * half, ty - dx * half);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
   }
 
   // A curtain of sparks falling from a line (for example a bridge deck).
@@ -546,6 +655,7 @@ export class Engine {
 
     // The sky itself lights up in the colour of the last burst.
     ctx.globalCompositeOperation = 'lighter';
+    if (this.beams.length && !skip.has('beams')) this.drawBeams(ctx);
     if (L.i > 0.01 && !skip.has('skyglow')) {
       const rad = this.U * 0.95;
       const g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, rad);
@@ -692,6 +802,11 @@ export class Engine {
         }
         if (pts.length === 1) this.emit('pop', { x: pts[0].x });
         else if (pts.length) this.emit('burst', { x: pts.reduce((sum, p) => sum + p.x, 0) / pts.length, size: 0.6, type: cue.type });
+        break;
+      }
+      case 'beams': {
+        const pts = this.rig[cue.set];
+        if (pts && pts.length) this.beams.push({ t: 0, dur: cue.dur ?? 8, pts, colors: cue.colors && cue.colors.length ? cue.colors : [WHITE] });
         break;
       }
       case 'glitter': {

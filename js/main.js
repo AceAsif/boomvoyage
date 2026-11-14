@@ -5,13 +5,15 @@
 import { Engine } from './engine.js';
 import { scenes, getScene } from './scenes/index.js';
 import { buildShow, createRunner, actAt } from './show.js';
-import { Sound } from './audio.js';
+import { Sound, LIFE_SOUNDS } from './audio.js';
 import { parseLink, buildShareLink } from './link.js';
 import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
 import { createLife } from './life.js';
 import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
 import { drawPostcard, postcardCaption, postcardFileName, postcardRoute } from './postcard.js';
+import { newYearState, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
+import { nextStop, stopLabel, sailCaption, initialVoyage, loadVoyage, saveVoyage, shouldPrepare, shouldSail, lifeRemaining, sailAt, sailLength } from './voyage.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -41,6 +43,37 @@ let pendingShared = link.seed !== null && (!link.scene || linkScene)
   : null;
 let lastShow = null;     // what "Copy link" shares: { scene, seed, theme }
 let ambient = link.ambient; // ambient (TV) mode: only the show on screen
+// Voyage mode: sail to the next city after each show (see js/voyage.js).
+let voyage = initialVoyage(link.voyage, (() => { try { return loadVoyage(localStorage); } catch { return null; } })());
+let sail = null;         // a sail under way: { next, t, swapped }
+let sailReady = null;    // the next city, painted offscreen: { id, prepared, wait }
+let sailedFor = 0;       // the show time (schedule.nextAt) that has had its sail
+
+// New Year's Eve mode (see js/newyear.js). On 31 December the clock counts
+// down to each city's real midnight. `?clock=` pretends it is another
+// moment, for testing: it only moves this mode's idea of "now".
+const clockOffset = link.clock !== null ? link.clock - Date.now() : 0;
+const cities = scenes.filter((s) => s.timeZone).map((s) => ({ id: s.id, name: s.name, timeZone: s.timeZone }));
+let newYear = { active: false };
+let struckAt = -Infinity;   // the midnight (in the mode's own time) whose show has already begun
+function refreshNewYear() {
+  try { newYear = newYearState(Date.now() + clockOffset, cities); } catch { newYear = { active: false }; }
+}
+refreshNewYear();
+// The next city's midnight in the page's own (real) time, or null on an ordinary day.
+function nextMidnight() {
+  const stop = upcomingStop(newYear, struckAt);
+  return stop ? { id: stop.id, name: stop.name, at: stop.at - clockOffset, year: newYear.year } : null;
+}
+// An ordinary show may not start in the last moments before a midnight.
+const heldForMidnight = (now = Date.now()) => { const n = nextMidnight(); return n && !mayStartShow(now, n.at) ? n : null; };
+// If the next ordinary show would run into a midnight, it waits for it.
+function alignWithMidnight() {
+  const n = nextMidnight();
+  if (!n || !schedule) return;
+  const at = showTimeNearMidnight(schedule.nextAt, n.at);
+  if (at !== schedule.nextAt) schedule = { intervalMs: schedule.intervalMs, nextAt: at };
+}
 const screenLock = createScreenLock();
 let started = false;     // true after "Tap to start"
 let schedule = null;
@@ -67,31 +100,55 @@ const intervalMs = () => scene.show.intervalSeconds * 1000;
 
 // ---------- shows ----------
 
-function startShow(now = Date.now()) {
+function startShow(now = Date.now(), { midnight = null } = {}) {
   if (!started) return;
+  finishSail();           // a show never starts in the middle of a sail: we arrive first
+  // A city's New Year show plays in that city, wherever we happen to be.
+  if (midnight && scene.id !== midnight.id) arrive(getScene(midnight.id), null);
+  if (midnight) struckAt = midnight.at + clockOffset;   // this city has had its midnight: count down to the next
   showCount += 1;
   const shared = pendingShared;
   pendingShared = null;
   const seed = shared ? shared.seed : (now ^ (showCount * 2654435761)) >>> 0;
-  const show = buildShow(scene.show, seed, { calm: reducedMotion, avoid: lastTitle, theme: shared?.theme });
+  const show = buildShow(scene.show, seed, { calm: reducedMotion, avoid: lastTitle, theme: shared?.theme, grand: !!midnight });
   lastTitle = show.title;
   lastShow = { scene: scene.id, seed: show.seed, theme: show.themeId };
   current = { runner: createRunner(show), startedAt: now };
   sound.hushLife();     // life sounds fade away as the show begins
   schedule = restart(schedule ?? createSchedule(intervalMs(), now), now);
-  announce(show.title);
+  refreshNewYear();
+  alignWithMidnight();
+  announce(show.title, midnight);
   updateClock();
 }
 
-function announce(title) {
+// "Launch now", the space bar, a newly chosen city: an ordinary show at
+// once, unless a midnight is so near that it would run into it.
+function launch() {
+  // The page was opened (or woke up) just after a midnight: that city's
+  // New Year show has not played here yet, so it plays now.
+  const n = nextMidnight();
+  if (n && Date.now() >= n.at) { startShow(Date.now(), { midnight: n }); return; }
+  const held = heldForMidnight();
+  if (held) {
+    if (!schedule) schedule = { intervalMs: intervalMs(), nextAt: held.at };
+    alignWithMidnight();
+    toast(`Midnight in ${held.name} is near`);
+    updateClock();
+    return;
+  }
+  startShow();
+}
+
+function announce(title, midnight = null) {
   const el = $('showTitle');
   el.textContent = '';
   const small = document.createElement('small');
-  small.textContent = `${scene.name} · Show No. ${showCount}`;
-  el.append(small, title);
+  small.textContent = midnight ? `Midnight in ${scene.name}` : `${scene.name} · Show No. ${showCount}`;
+  el.append(small, midnight ? newYearTitle(midnight.year) : title);
   el.classList.add('is-on');
   clearTimeout(titleTimer);
-  titleTimer = setTimeout(() => el.classList.remove('is-on'), 5200);
+  titleTimer = setTimeout(() => el.classList.remove('is-on'), midnight ? 10000 : 5200);
 }
 
 // The caption with the name of the act that is playing. It fades out, the
@@ -120,22 +177,32 @@ function showAct(act, total) {
 function checkSchedule() {
   if (!schedule || document.hidden) return;
   const now = Date.now();
-  if (isDue(schedule, now)) startShow(now);
+  if (isDue(schedule, now)) {
+    const n = nextMidnight();
+    startShow(now, { midnight: isMidnightShow(now, schedule.nextAt, n) ? n : null });
+  }
 }
 
 function updateClock() {
   const now = Date.now();
   const left = schedule ? remainingMs(schedule, now) : intervalMs();
-  $('countdown').textContent = formatCountdown(left);
   $('barFill').style.width = `${((schedule ? progress(schedule, now) : 0) * 100).toFixed(2)}%`;
-  $('clockLabel').textContent = current ? 'Showing now · next in' : 'Next show in';
+  // New Year's Eve: the big clock counts down to the next city's midnight.
+  // The thin line under it still shows the way to the next show.
+  const n = nextMidnight();
+  const toMidnight = n ? Math.max(0, n.at - now) : 0;
+  $('countdown').textContent = n ? formatLongCountdown(toMidnight) : formatCountdown(left);
+  $('countdown').classList.toggle('is-long', !!n && toMidnight >= 3600000);
+  $('clockLabel').textContent = n ? midnightLabel(n.name, !!current) : current ? 'Showing now · next in' : 'Next show in';
 }
 
 // Called every frame. Show time comes from real timestamps, not frame counts.
 engine.onTick = (now, dt) => {
   checkSchedule();
   // Life runs only while it is quiet: started, no show, no sparks left in the air.
-  life.tick(dt, schedule ? remainingMs(schedule, Date.now()) / 1000 : Infinity, started && !current && !engine.busy);
+  const remaining = schedule ? remainingMs(schedule, Date.now()) / 1000 : Infinity;
+  life.tick(dt, lifeRemaining(remaining, !!sailTarget(), reducedMotion), started && !current && !engine.busy);
+  voyageTick(dt, remaining);
   if (!current) { showAct(null); return; }
   const elapsed = (Date.now() - current.startedAt) / 1000;
   for (const cue of current.runner.due(elapsed)) engine.fire(cue);
@@ -209,9 +276,130 @@ function renderScene() {
   }
 }
 
+// ---------- voyage mode ----------
+
+const sceneIds = () => scenes.map((s) => s.id);
+
+function renderVoyage() {
+  const btn = $('voyageBtn');
+  btn.setAttribute('aria-pressed', String(voyage));
+  btn.setAttribute('aria-label', voyage ? 'Voyage mode is on: sail to the next city after each show' : 'Voyage mode is off: stay in this city');
+  btn.title = voyage ? 'Voyage mode on (V)' : 'Voyage mode (V)';
+}
+
+function setVoyage(on) {
+  voyage = !!on;
+  try { saveVoyage(localStorage, voyage); } catch { /* no storage: keep going */ }
+  renderVoyage();
+  if (voyage) {
+    toast(`Voyage on · next stop ${getScene(nextStop(sceneIds(), scene.id)).name}`);
+  } else {
+    cancelSail();         // turning it off keeps the city we are in
+    sailReady = null;
+    toast('Voyage off · staying here');
+  }
+}
+
+function drawSail(dark, progress) {
+  const el = $('sail');
+  el.style.opacity = dark.toFixed(3);
+  el.style.visibility = dark > 0.001 ? 'visible' : 'hidden';
+  $('sailLine').style.width = `${(progress * 100).toFixed(1)}%`;
+}
+
+// The city changes here, and only here, in voyage mode: no show is started
+// and the schedule is not touched, so the countdown simply carries on.
+function arrive(next, prepared) {
+  scene = next;
+  store(SCENE_KEY, scene.id);
+  current = null;
+  lastTitle = null;
+  lastShow = null;
+  pendingShared = null;
+  if (prepared) engine.adopt(prepared); else engine.setScene(scene);
+  sound.hushLife();
+  sound.setScene(scene.sound);
+  life = makeLife();
+  renderScene();
+}
+
+// Where the next sail goes, or null if there is none to make.
+// On New Year's Eve, when the next show is a city's midnight show, we go to
+// that city (voyage mode or not). Otherwise voyage mode goes to the next stop.
+function sailTarget() {
+  const n = nextMidnight();
+  if (n && schedule && schedule.nextAt === n.at) return n.id !== scene.id ? { id: n.id, midnight: n } : null;
+  return voyage ? { id: nextStop(sceneIds(), scene.id), midnight: null } : null;
+}
+
+function beginSail(target) {
+  const next = getScene(target.id);
+  sail = { next, t: 0, swapped: false, midnight: !!target.midnight };
+  sailedFor = schedule ? schedule.nextAt : 0;
+  $('sailStop').textContent = target.midnight ? 'New Year\u2019s Eve' : stopLabel(sceneIds(), next.id);
+  $('sailTo').textContent = target.midnight ? `Midnight in ${next.name}` : sailCaption(next.name);
+  sound.life('sail', { now: true });
+}
+
+function endSail() {
+  sail = null;
+  sailReady = null;
+  drawSail(0, 0);
+  $('sailStop').textContent = '';
+  $('sailTo').textContent = '';
+}
+
+// A show is about to start, or the visitor asked for something else: if we
+// are mid-sail, arrive at once (in the dark) and lift the night.
+function finishSail() {
+  if (!sail) return;
+  if (!sail.swapped) arrive(sail.next, sailReady && sailReady.id === sail.next.id ? sailReady.prepared : null);
+  endSail();
+}
+
+// Voyage mode was switched off, or another city was picked by hand, before
+// the city changed: stay, and lift the night.
+function cancelSail() {
+  if (!sail || sail.midnight) return;   // the way to a midnight city is not cancelled
+  if (sail.swapped) { endSail(); return; }
+  endSail();
+  sailedFor = 0;
+}
+
+// Called every frame. Paints the next city in small steps during the quiet
+// minute, then sails when the time has come.
+function voyageTick(dt, remaining) {
+  const target = sailTarget();
+  const state = {
+    on: !!target, started, showing: !!current, busy: engine.busy, life: life.active.length,
+    remaining, hidden: document.hidden, sailing: !!sail, sailed: !!schedule && sailedFor === schedule.nextAt,
+  };
+  if (sail) {
+    sail.t += dt;
+    const at = sailAt(sail.t, reducedMotion);
+    if (at.swap && !sail.swapped) {
+      arrive(sail.next, sailReady && sailReady.id === sail.next.id ? sailReady.prepared : null);
+      sail.swapped = true;
+    }
+    drawSail(at.dark, Math.min(1, sail.t / sailLength(reducedMotion)));
+    if (at.stage === 'done') endSail();
+    return;
+  }
+  if (shouldPrepare(state, reducedMotion)) {
+    const id = target.id;
+    if (!sailReady || sailReady.id !== id) sailReady = { id, prepared: engine.prepare(getScene(id)), wait: 0 };
+    // One small step, then a pause, so no two heavy frames come together.
+    sailReady.wait -= dt;
+    if (!sailReady.prepared.ready && sailReady.wait <= 0) { sailReady.prepared.step(); sailReady.wait = 0.35; }
+  }
+  if (shouldSail(state, reducedMotion)) beginSail(target);
+}
+
 function setScene(id) {
   const next = getScene(id);
   closeMenu();
+  if (sail) { if (sail.swapped || sail.midnight) finishSail(); else cancelSail(); }
+  sailReady = null;
   if (next === scene) return;
   scene = next;
   store(SCENE_KEY, scene.id);
@@ -225,7 +413,7 @@ function setScene(id) {
   sound.setScene(scene.sound);
   life = makeLife();
   renderScene();
-  if (started) startShow(); // a new harbour says hello with a show
+  if (started) launch();    // a new harbour says hello with a show
   updateClock();
 }
 
@@ -438,7 +626,7 @@ function begin() {
   sound.start(scene.sound);       // inside the click, so the browser allows audio
   $('start').classList.add('is-gone');
   ui.classList.remove('is-hidden');
-  startShow();
+  launch();
   wake();
   syncScreenLock();
 }
@@ -446,7 +634,7 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; } };
+window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
 
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).
@@ -461,7 +649,9 @@ if (link.debug) {
       + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
       + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
       + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
-      + 'life sounds: press 1 horn · 2 water · 3 chime';
+      + (link.clock !== null || newYear.active ? `new year: ${newYear.active ? `${newYear.year} · next midnight ${nextMidnight()?.name ?? 'none left'}` : 'not today'}${link.clock !== null ? ` · test clock ${new Date(Date.now() + clockOffset).toISOString().slice(0, 19)}Z` : ''}\n` : '')
+      + `voyage: ${voyage ? (sail ? `sailing to ${sail.next.name}` : sailReady ? `on · ${getScene(sailReady.id).name} ${sailReady.prepared.ready ? 'ready' : 'being painted'}` : 'on') : 'off'}\n`
+      + `life sounds: press ${LIFE_SOUNDS.map((kind, i) => `${i + 1} ${kind}`).join(' · ')}`;
   }, 500);
 }
 
@@ -477,6 +667,7 @@ $('ambientBtn').setAttribute('aria-pressed', String(ambient));
 buildMenu();
 renderScene();
 renderMute();
+renderVoyage();
 renderFullscreen();
 updateClock();
 if (!fsRequest) $('fsBtn').hidden = true;
@@ -488,7 +679,7 @@ $('startBtn').addEventListener('click', begin);
 
 // The clock text only needs a few updates per second. Browsers slow this
 // timer in background tabs, which is fine: every update reads Date.now().
-setInterval(() => { checkSchedule(); updateClock(); }, 250);
+setInterval(() => { refreshNewYear(); alignWithMidnight(); checkSchedule(); updateClock(); }, 250);
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) sound.suspend(); else if (started) sound.resume();
@@ -513,7 +704,7 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 
 $('launchBtn').addEventListener('click', () => {
-  startShow();
+  launch();
   const btn = $('launchBtn');
   btn.disabled = true;
   setTimeout(() => { btn.disabled = false; }, 1500);
@@ -529,6 +720,7 @@ $('volume').addEventListener('input', (e) => {
 $('volume').step = String(VOLUME_STEP * 100);
 $('shareBtn').addEventListener('click', shareLink);
 $('snapBtn').addEventListener('click', savePostcard);
+$('voyageBtn').addEventListener('click', () => setVoyage(!voyage));
 $('ambientBtn').addEventListener('click', () => setAmbient(true, { hint: true }));
 $('linkDone').addEventListener('click', closeLinkBox);
 $('fsBtn').addEventListener('click', toggleFullscreen);
@@ -550,8 +742,8 @@ document.addEventListener('keydown', (e) => {
   const onControl = e.target.closest && e.target.closest('button, [role="option"]');
   const key = e.key.toLowerCase();
   // ?debug=1 only: hear each life sound at once, without waiting for its event.
-  if (link.debug && ['1', '2', '3'].includes(key)) {
-    const kind = ['horn', 'water', 'chime'][Number(key) - 1];
+  if (link.debug && /^[1-9]$/.test(key) && LIFE_SOUNDS[Number(key) - 1]) {
+    const kind = LIFE_SOUNDS[Number(key) - 1];
     const played = sound.life(kind, { now: true });
     toast(played ? `Life sound: ${kind}` : sound.silent ? 'Sound is muted' : `Not played: ${kind} (two are already playing)`);
     return;
@@ -559,8 +751,9 @@ document.addEventListener('keydown', (e) => {
   if (key === 'm') toggleMute();
   else if (key === 'f') toggleFullscreen();
   else if (key === 'p' && !ambient) savePostcard();
+  else if (key === 'v') setVoyage(!voyage);
   else if (key === 'a') setAmbient(!ambient, { hint: true });
-  else if ((key === ' ' || key === 'enter') && !onControl) { e.preventDefault(); startShow(); }
+  else if ((key === ' ' || key === 'enter') && !onControl) { e.preventDefault(); launch(); }
 });
 
 for (const type of ['pointermove', 'pointerdown', 'touchstart']) {

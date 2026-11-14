@@ -6,8 +6,9 @@ import sydney from './sydney.js';
 import dubai from './dubai.js';
 import paris from './paris.js';
 import london from './london.js';
+import newyork from './newyork.js';
 
-export const scenes = [sydney, dubai, paris, london];
+export const scenes = [sydney, dubai, paris, london, newyork];
 
 export function getScene(id) {
   return scenes.find((s) => s.id === id) || scenes[0];

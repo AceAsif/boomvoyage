@@ -1,44 +1,33 @@
-# Progress - Volume slider and postcard snapshot
-Branch: feature/volume-and-postcard (made from main at b515faf)
-Last updated: 2026-11-12
+# Progress - Grand voyage (three cities, Voyage mode, New Year's Eve mode)
+Branch: feature/grand-voyage (made from main at 3bb787b)
+Last updated: 2026-11-14
+
+Phases, in this order: A) New York, Tokyo, Hong Kong. B) Voyage mode. C) New Year's Eve mode.
+Rule: a city is added to `js/scenes/index.js` only in the commit where it is finished and tested.
 
 ## Done
 - (Earlier work is in main. See git history.)
-- Step 1: Volume slider.
-  - `js/volume.js` (new, pure rules): volume 0..1, default 1, full volume = master gain 0.8 (exactly today's level, nothing can be louder), squared curve, clamping, load and save in localStorage inside try/catch (key `boomvoyage.volume`), 0 acts as mute, the mute button and slider rules (`toggleSound`, `slideTo`).
-  - `js/audio.js`: `setVolume`, `silent`; the master gain follows volume and mute, so fireworks, ambience and life sounds all follow. No single sound was changed. No sounds are made while silent.
-  - `index.html`, `css/style.css`: a small popover with a range slider above the mute button. Opens on hover (mouse), on keyboard focus (Tab to the slider, arrow keys move it 5% a step), and on a phone after a tap on the mute button (closes after 4 s or a tap elsewhere). It is inside the controls, so ambient mode hides it.
-  - `js/main.js`: wiring. The mute button works as before; if the slider is at 0 it brings full volume back. Moving the slider above 0 takes mute off. The mute icon shows "off" whenever nothing can be heard.
-  - `tests/volume.test.js` (new, 11 tests). 216 pass.
-  - Checked in real Chrome: full = gain 0.8, 40% = 0.128, saved as 0.4 and kept after reload, 0 = gain 0 and no sounds made, hidden in ambient mode, popover inside the screen at 1600x815 and 390x844. Looked at screenshots of both.
-- Step 2: Postcard snapshot.
-  - `js/postcard.js` (new): caption ("Paris · Show No. 4"), small line ("France · 12 November 2026"), file name (`boomvoyage-paris-show-4.png`), share-or-download choice, card sizes, and the drawing: the sky as it is on a paper-coloured card with a hairline, the BoomVoyage name and the caption. Wide pictures: name left, caption right. Tall pictures: words stacked in the middle. No personal names, no addresses.
-  - Size: the picture uses the canvas's own pixels (sharp on high-DPI screens), is never made bigger, and its longest side is at most 1920 pixels.
-  - `index.html`, `css/style.css`: camera button, first in the row. Phone portrait: the bottom grid has one more column (camera, link, ambient on the first row; Launch now, sound, fullscreen on the second). It is in the controls, so ambient mode hides it.
-  - `js/main.js`: on press (or key P) the card is made once. Phones and tablets with a share sheet that takes files get the share sheet ("Postcard shared"; closing the sheet says nothing); everything else downloads the PNG ("Postcard saved"). The show does no extra work for it.
-  - `tests/postcard.test.js` (new, 9 tests). 225 pass.
-  - Checked in real Chrome and Firefox at 1600x815 (pixel ratio 1.5), 390x844 (3) and 844x390 (2): the button saves a PNG with the right name in 56 to 77 ms (Chrome), shows "Postcard saved", is disabled while busy, is hidden in ambient mode, and all six controls fit without touching the clock. Looked at the postcards from Paris (wide) and London (tall).
-- Step 3: README: volume slider, postcard, keys, tests, file list, creative decisions.
+- Step A0: shared building blocks. `js/show.js`: new acts `marquee`, `kiku`, `pairs`, `dragon`; new openings `salvo`, `single`, `sweep`; new signature acts `starmine` (anchor sets `bridge`, `towers`) and `beams` (anchor set `roofs`). `js/engine.js`: new cue kind `beams` (light beams sweeping the sky behind the skyline, a few see-through triangles per frame). `js/lifesound.js`: three more quiet sounds `bell`, `furin`, `gong`, built by the same rules (fades, stop, two at once). `js/main.js`: with `?debug=1` keys 1 to 6 play the six life sounds. Old cities' shows did not change (their tests pass).
+- Step A1: New York (`js/scenes/newyork.js`, registered). Empire State Building, an art-deco neighbour, a downtown glass tower, the Statue of Liberty small at the left edge, the Brooklyn Bridge with stone towers and cables. Middle act: the waterfall hangs from the bridge's main cables ("Bridge of Light"), with a fan of comets from the Empire State antenna. Opening `salvo`, own act `marquee` ("Broadway"), six themes, loud finale mix. Life: ferry (horn), tug (water), helicopter (behind), yellow cabs on the bridge (behind: they pass behind the stone towers), rooftop steam (behind), Empire State crown lights changing colour (chime), channel buoy (bell). Portrait: Empire State left of the middle, bridge shorter beside it. `tests/newyork.test.js` (7 tests). Looked at in real Chrome: 1600x815, 390x844, 844x390, 1024x768, idle, bursts, waterfall and all life events. 253 tests pass.
 
 ## In progress
 - nothing
 
 ## Next step
-- The user opens the Pull Request for `feature/volume-and-postcard` and merges it. Do not merge into main from here.
+- Step A2: Tokyo (`js/scenes/tokyo.js`): Tokyo Tower, Skytree, Rainbow Bridge, signature `starmine` from the bridge, acts `kiku` and `pairs`, opening `single`. Life: houseboats with lanterns, train on the bridge (behind the bridge towers), aircraft lights, water bus (horn), lantern string (furin).
+- Step A3: Hong Kong (`js/scenes/hongkong.js`): harbour towers, the Peak, signature `beams` from the rooftops, act `dragon`, opening `sweep`. Life: Star Ferry (horn), red-sailed junk (gong), lit windows, lights climbing the Peak, mist.
+- Step A4: measure every new city in Firefox and Chrome.
+- Phase B: Voyage mode (button, key V, saved choice, `?voyage=1`, sails to the next city only in the quiet stretch, caption, quiet sound, next city painted offscreen before the switch).
+- Phase C: New Year's Eve mode (real time zones with Intl, midnight order, longer finale show, `?clock=` fake time for testing).
+- README: creative decisions for each city and both modes, link options table. Final report.
 
 ## Measurements
-- AFTER (this branch, same window): Chrome Sydney and Paris quiet 144 fps, heavy show 144 fps. Firefox quiet 144 fps; heavy show Sydney 69 and 73 fps, Paris 68 and 73 fps. Same as before within Firefox's usual swing (see the line below): nothing was added to the frame loop, the volume is one number on the master gain and the postcard only runs on a press.
-- BEFORE (main; window 1600x815, pixel ratio 1.5, 144 Hz): Chrome Sydney quiet 144 fps, heavy show 144 fps. Firefox quiet 144 fps; heavy show Sydney 70 and 74 fps, Paris 87 and 104 fps (Firefox swings between about 73 and 100 from run to run, as noted in earlier tasks).
+- Frame rates per city are measured at the end of phase A and during a voyage transition in phase B.
 
 ## Decisions
-- The slider shows 0 while muted, because it shows what you hear. Unmuting brings the saved level back.
-- Keyboard focus opening the popover is plain CSS (`:focus-within`). The test browser window does not hold focus, so this one thing was not checked by machine: on the hand-test list.
+- Before every commit check `git branch --show-current` says `feature/grand-voyage`.
+- New cities reuse the engine. Only one new engine effect was added (sky beams). Nothing in the old cities' files changed.
+- New York's bridge towers are the foreground half of its skyline, so traffic on the roadway is hidden behind them.
 
 ## Problems / questions for the user
-- To test by hand (could not be checked by machine):
-  1. Listen: the slider at full is as loud as before; lower is quieter for fireworks AND life sounds; at 0 there is silence and the mute icon shows "off".
-  2. Keyboard: Tab to the mute button, Tab again to the slider (it should open), arrow keys move it, Esc closes it.
-  3. Mouse: hover the mute button, the slider opens, and stays open while the mouse moves up onto it.
-  4. Phone: tap the mute button: sound toggles and the slider opens for a few seconds.
-  5. Phone: tap the camera: the share sheet opens with the picture. Desktop: the PNG downloads.
-  6. Open a saved postcard and zoom in: it should be sharp.
+- none

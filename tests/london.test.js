@@ -11,8 +11,8 @@ test('London is registered and a share link opens it', () => {
   assert.equal(getScene(parseLink('?scene=london&seed=9&theme=crown-jewels').scene), london);
 });
 
-test('the switcher lists the four places, Sydney first', () => {
-  assert.deepEqual(scenes.map((s) => s.id), ['sydney', 'dubai', 'paris', 'london']);
+test('the switcher lists the first four places in their old order, Sydney first', () => {
+  assert.deepEqual(scenes.slice(0, 4).map((s) => s.id), ['sydney', 'dubai', 'paris', 'london']);
 });
 
 test('London has its own themes, act names and the wheel signature', () => {

@@ -484,6 +484,7 @@ export default {
   id: 'hongkong',
   name: 'Hong Kong',
   country: 'China',
+  timeZone: 'Asia/Hong_Kong',   // for New Year's Eve mode: when midnight really is here
   tagline: 'Victoria Harbour, tonight and every two minutes.',
 
   horizon: { landscape: 0.74, portrait: 0.7 },

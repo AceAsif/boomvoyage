@@ -395,13 +395,20 @@ function finale(c, t, seconds) {
   let gap = 0.42;
   let i = 0;
   for (let tt = t; tt < t + seconds; tt += gap) {
-    c.shell(tt, 0.06 + c.r() * 0.88, 0.28 + c.r() * 0.62, pick(c.r, types), { size: 0.8 + c.r() * 0.5 });
+    c.shell(tt, 0.06 + c.r() * 0.88, 0.28 + c.r() * 0.62, pick(c.r, types), { size: (0.8 + c.r() * 0.5) * (c.grand ? 1.18 : 1) });
     if (i++ % 6 === 5) c.add(tt, 'mine', { x: 0.1 + c.r() * 0.8, color: c.col(), size: 1 });
     gap = Math.max(fastest, gap * 0.93);
   }
   const end = t + seconds + 0.3;
   [0.14, 0.32, 0.5, 0.68, 0.86].forEach((x) => c.shell(end, x, 0.74, 'kamuro', { size: 1.3 }));
   [0.3, 0.5, 0.7].forEach((x, k) => c.shell(end + 0.7 + k * 0.12, x, 0.5, 'salute', { size: 1 }));
+  if (c.grand) {
+    // The midnight show: a second, higher wave of gold, and a ring over it all.
+    [0.22, 0.41, 0.59, 0.78].forEach((x) => c.shell(end + 1.4, x, 0.9, 'kamuro', { size: 1.45 }));
+    c.shell(end + 2.3, 0.5, 0.6, 'ring', { size: 1.7 });
+    c.shell(end + 3.6, 0.5, 0.94, 'kamuro', { size: 1.9, whistle: true });
+    return seconds + 5;
+  }
   c.shell(end + 2.1, 0.5, 0.92, 'kamuro', { size: 1.6, whistle: true });
   return seconds + 3.4;
 }
@@ -455,6 +462,8 @@ export function actAt(show, elapsed) {
 // opts.theme: a palette id (see slugify) to use instead of the random pick. The
 // random numbers are used in the same way either way, so the same seed and
 // the same theme always give exactly the same show (this is what share links use).
+// opts.grand: the New Year's midnight show: one more act, a finale twice as
+// long with bigger shells, and a second wave of gold at the very end.
 export function buildShow(cfg, seed, opts = {}) {
   const r = seededRandom(seed);
   let palettes = cfg.palettes;
@@ -467,6 +476,7 @@ export function buildShow(cfg, seed, opts = {}) {
 
   const c = {
     r, calm,
+    grand: !!opts.grand,
     features: cfg.features || {},
     finaleTypes: cfg.finaleTypes,
     col: (i) => (i === undefined ? pick(r, theme.colors) : theme.colors[i % theme.colors.length]),
@@ -500,13 +510,13 @@ export function buildShow(cfg, seed, opts = {}) {
   run('opening', () => open(c, t));
   // A scene may list its own acts; without a list the seven classic ones are used.
   const pool = cfg.acts ? cfg.acts.filter((key) => ALL_MOVEMENTS[key]) : Object.keys(MOVEMENTS);
-  const names = shuffle(r, pool).slice(0, cfg.movements ?? 3);
+  const names = shuffle(r, pool).slice(0, (cfg.movements ?? 3) + (opts.grand ? 1 : 0));
   for (const name of names) run(name, () => ALL_MOVEMENTS[name](c, t), 0.5);
   // The quiet middle: the waterfall, or the scene's own signature act.
   const signature = SIGNATURES[cfg.signature];
   if (c.features.waterfall) run('waterfall', () => waterfallAct(c, t), 0.3);
   else if (signature) run(cfg.signature, () => signature(c, t), 0.3);
-  run('finale', () => finale(c, t, cfg.finaleSeconds ?? 8));
+  run('finale', () => finale(c, t, (cfg.finaleSeconds ?? 8) * (opts.grand ? 2 : 1)));
   timeline.forEach((act, i) => { act.index = i + 1; });
 
   cues.sort((a, b) => a.t - b.t);

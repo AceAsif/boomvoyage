@@ -461,6 +461,7 @@ export default {
   id: 'tokyo',
   name: 'Tokyo',
   country: 'Japan',
+  timeZone: 'Asia/Tokyo',   // for New Year's Eve mode: when midnight really is here
   tagline: 'Tokyo Bay, tonight and every two minutes.',
 
   horizon: { landscape: 0.74, portrait: 0.7 },

@@ -402,6 +402,7 @@ export default {
   id: 'dubai',
   name: 'Dubai',
   country: 'UAE',
+  timeZone: 'Asia/Dubai',   // for New Year's Eve mode: when midnight really is here
   tagline: 'Downtown Dubai, tonight and every two minutes.',
 
   horizon: { landscape: 0.74, portrait: 0.7 },

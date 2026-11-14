@@ -205,6 +205,8 @@ button:focus-visible {
   font-variant-numeric: tabular-nums lining-nums;
   text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6);
 }
+/* Hours, minutes and seconds (New Year's Eve): a little smaller, to fit. */
+.time.is-long { font-size: clamp(32px, 4.6vw, 54px); line-height: 1.05; }
 .time.is-live { font-style: italic; color: var(--ember); font-size: clamp(30px, 4.4vw, 50px); line-height: 1.1; }
 .bar { display: block; height: 1px; margin-top: 8px; background: var(--line); }
 .bar i {

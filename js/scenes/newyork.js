@@ -505,6 +505,7 @@ export default {
   id: 'newyork',
   name: 'New York',
   country: 'USA',
+  timeZone: 'America/New_York',   // for New Year's Eve mode: when midnight really is here
   tagline: 'New York on the East River, tonight and every two minutes.',
 
   horizon: { landscape: 0.74, portrait: 0.7 },

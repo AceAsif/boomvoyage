@@ -11,7 +11,7 @@
 // - every fade in and fade out takes at least 30 ms, so nothing clicks;
 // - every tone or noise is stopped shortly after its volume reaches 0.
 
-export const LIFE_SOUNDS = ['horn', 'water', 'chime', 'bell', 'furin', 'gong'];
+export const LIFE_SOUNDS = ['horn', 'water', 'chime', 'bell', 'furin', 'gong', 'sail'];
 export const LIFE_SOUND_LIMIT = 2;      // how many may sound at the same time
 export const MIN_FADE = 0.03;           // seconds
 
@@ -84,6 +84,15 @@ export function lifeSoundPlan(kind, rand = Math.random) {
         { source: 'tone', wave: 'sine', freq: base * mult, start: 0, stop: 3.7, env: [[0, 0], [0.04, top], [0.8, top * 0.45], [3.6, 0]] }
       )),
     };
+  }
+  if (kind === 'sail') {
+    // Setting sail (voyage mode): a long soft breath of wind, and two quiet
+    // notes a fifth apart that rise and fall with it.
+    const wind = { source: 'noise', filter: { type: 'bandpass', freq: 380 + rand() * 60, q: 0.5 }, start: 0, stop: 4.3, env: [[0, 0], [1.7, 0.028], [2.6, 0.02], [4.2, 0]] };
+    const notes = [392, 587.3].map((freq, i) => (
+      { source: 'tone', wave: 'sine', freq, start: 0.3 * i, stop: 4.1, env: [[0.3 * i, 0], [1.4 + 0.3 * i, 0.007], [2.6, 0.005], [4, 0]] }
+    ));
+    return { kind, length: 4.4, voices: [wind, ...notes] };
   }
   return null;
 }

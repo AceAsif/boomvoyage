@@ -4,6 +4,7 @@
 //   ?seed=3735928559       which show to play first (the show's own seed)
 //   ?theme=ember-jade      which colour theme that show used
 //   ?ambient=1             start in ambient (TV) mode
+//   ?voyage=1              start with voyage mode on (?voyage=0: off)
 //   ?debug=1               show a small frame-rate meter
 //
 // A "Copy link" link carries scene + seed + theme, so the receiver's first
@@ -37,7 +38,11 @@ export function parseLink(search = '') {
   // An on/off option: "?ambient" alone also counts as on.
   const flag = (name) => p.has(name) && !['0', 'false', 'no', 'off'].includes(p.get(name).trim().toLowerCase());
 
-  return { scene: id(p.get('scene')), seed, theme: id(p.get('theme')), ambient: flag('ambient'), debug: flag('debug') };
+  // Voyage mode has three answers: on, off, or "not said" (null), in which
+  // case the visitor's saved choice is used.
+  const voyage = p.has('voyage') ? flag('voyage') : null;
+
+  return { scene: id(p.get('scene')), seed, theme: id(p.get('theme')), ambient: flag('ambient'), debug: flag('debug'), voyage };
 }
 
 // Builds the link to share. `href` is the address of the current page; any

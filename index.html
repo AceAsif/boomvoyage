@@ -81,6 +81,9 @@
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 20h6M12 16.5V20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         </button>
         <button id="launchBtn" class="pill" type="button">Launch now</button>
+        <button id="voyageBtn" class="icon toggle" type="button" aria-pressed="false" aria-label="Voyage mode is off: stay in this city" title="Voyage mode (V)">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3.5v12.2M12 4.5c3.4 2 5.6 5.2 6.2 9.4H12zM11.2 7.2c-2 1.6-3.4 3.8-4 6.7h4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><path d="M4 17.2h16l-1.8 3H5.8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </button>
         <!-- Sound: the mute button, and a volume slider that opens above it
              (on hover or keyboard focus; on a phone, after a tap on the button). -->
         <div id="vol" class="vol">
@@ -98,6 +101,13 @@
         </button>
       </div>
     </footer>
+  </div>
+
+  <!-- Voyage mode: the picture fades to night here while the city changes. -->
+  <div id="sail" class="sail" role="status" aria-live="polite">
+    <small id="sailStop"></small>
+    <span id="sailTo"></span>
+    <i class="sail-line" aria-hidden="true"><b id="sailLine"></b></i>
   </div>
 
   <!-- Quiet messages that float above the controls. -->

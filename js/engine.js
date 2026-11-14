@@ -125,9 +125,9 @@ export class Engine {
 
   // ---------- layout ----------
 
-  resize() {
-    const scene = this.scene;
-    if (!scene) return;
+  // The view of a scene on the window as it is now: sizes, the horizon, and
+  // the two functions that turn scene units into pixels.
+  viewFor(scene) {
     const w = Math.max(1, window.innerWidth);
     const h = Math.max(1, window.innerHeight);
     const small = Math.min(w, h) < 600;
@@ -144,19 +144,88 @@ export class Engine {
     const fx = typeof scene.focusX === 'number'
       ? scene.focusX
       : (portrait ? scene.focusX?.portrait : scene.focusX?.landscape) ?? 0;
-
-    this.view = {
-      w, h, dpr, hz, S, portrait,
+    return {
+      w, h, dpr, hz, S, portrait, small,
       // Reference size for bursts. A tall phone sky gets bigger fireworks.
       U: portrait ? Math.min(w * 2, hz * 1.5) : Math.min(w * 1.6, hz * 1.5),
       px: (x) => w / 2 + (x - fx) * S, // scene x (-500..500) to pixels
       py: (y) => hz - y * S,      // scene y (up from the waterline) to pixels
     };
-    this.U = this.view.U;
+  }
+
+  // Takes a view into use: everything that is sized by it follows.
+  useView(view) {
+    this.view = view;
+    this.U = view.U;
     this.G = 0.085 * this.U;
-    this.q = this.calm ? 0.45 : small ? 0.65 : 1;
-    this.P.max = this.calm ? 500 : small ? 1000 : 1800;
+    this.q = this.calm ? 0.45 : view.small ? 0.65 : 1;
+    this.P.max = this.calm ? 500 : view.small ? 1000 : 1800;
     this.P.scale = Math.max(0.75, Math.min(1.4, this.U / 1000));
+  }
+
+  // Paints another scene offscreen, in four small steps (sky, skyline, the
+  // lit skyline, water), so that it can later be shown without any painting
+  // at all: see adopt(). Voyage mode uses this to get the next city ready
+  // during the quiet minute, a step at a time, so no frame is dropped.
+  // Returns { scene, step(), ready }: call step() until ready is true.
+  prepare(scene) {
+    const p = Object.create(Engine.prototype);   // a painter with its own layers; it never draws to the screen
+    p.scene = scene;
+    p.calm = this.calm;
+    p.view = this.viewFor(scene);
+    p.sky = makeLayer();
+    p.land = makeLayer();
+    p.water = makeLayer();
+    p.lit = [makeLayer(), makeLayer(), makeLayer()];
+    p.litBand = { y: 0, h: 0 };
+    p.twinkles = [];
+    p.halves = null;
+    const { w, h, dpr } = p.view;
+    for (const layer of [p.sky, p.land, p.water]) {
+      layer.c.width = Math.round(w * dpr);
+      layer.c.height = Math.round(h * dpr);
+      layer.x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    p.rig = scene.rig ? scene.rig(p.view) : {};
+    const steps = [() => p.paintSky(), () => p.paintLand(), () => p.paintLit(), () => p.paintWater()];
+    return {
+      scene,
+      painter: p,
+      get ready() { return steps.length === 0; },
+      step() { const next = steps.shift(); if (next) next(); return steps.length === 0; },
+    };
+  }
+
+  // Shows a scene that prepare() has painted: its finished layers are taken
+  // over as they are. If it is not finished, or the window has changed size
+  // since, the scene is set the ordinary way instead. Returns true when the
+  // prepared pictures were used.
+  adopt(prepared) {
+    const p = prepared.painter;
+    const now = this.viewFor(prepared.scene);
+    if (!prepared.ready || now.w !== p.view.w || now.h !== p.view.h || now.dpr !== p.view.dpr) {
+      this.setScene(prepared.scene);
+      return false;
+    }
+    this.scene = prepared.scene;
+    this.clear();
+    this.useView(p.view);
+    this.sky = p.sky;
+    this.land = p.land;
+    this.water = p.water;
+    this.lit = p.lit;
+    this.litBand = p.litBand;
+    this.twinkles = p.twinkles;
+    this.rig = p.rig;
+    this.halves = null;
+    return true;
+  }
+
+  resize() {
+    const scene = this.scene;
+    if (!scene) return;
+    this.useView(this.viewFor(scene));
+    const { w, h, dpr } = this.view;
 
     for (const layer of [this, this.sky, this.land, this.water]) {
       const c = layer.c || layer.canvas;

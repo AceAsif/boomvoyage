@@ -12,6 +12,7 @@ import { createFrameStats, formatStats } from './stats.js';
 import { createLife } from './life.js';
 import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
 import { drawPostcard, postcardCaption, postcardFileName, postcardRoute } from './postcard.js';
+import { nextStop, stopLabel, sailCaption, initialVoyage, loadVoyage, saveVoyage, shouldPrepare, shouldSail, lifeRemaining, sailAt, sailLength } from './voyage.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -41,6 +42,11 @@ let pendingShared = link.seed !== null && (!link.scene || linkScene)
   : null;
 let lastShow = null;     // what "Copy link" shares: { scene, seed, theme }
 let ambient = link.ambient; // ambient (TV) mode: only the show on screen
+// Voyage mode: sail to the next city after each show (see js/voyage.js).
+let voyage = initialVoyage(link.voyage, (() => { try { return loadVoyage(localStorage); } catch { return null; } })());
+let sail = null;         // a sail under way: { next, t, swapped }
+let sailReady = null;    // the next city, painted offscreen: { id, prepared, wait }
+let sailedFor = 0;       // the show time (schedule.nextAt) that has had its sail
 const screenLock = createScreenLock();
 let started = false;     // true after "Tap to start"
 let schedule = null;
@@ -69,6 +75,7 @@ const intervalMs = () => scene.show.intervalSeconds * 1000;
 
 function startShow(now = Date.now()) {
   if (!started) return;
+  finishSail();           // a show never starts in the middle of a sail: we arrive first
   showCount += 1;
   const shared = pendingShared;
   pendingShared = null;
@@ -135,7 +142,9 @@ function updateClock() {
 engine.onTick = (now, dt) => {
   checkSchedule();
   // Life runs only while it is quiet: started, no show, no sparks left in the air.
-  life.tick(dt, schedule ? remainingMs(schedule, Date.now()) / 1000 : Infinity, started && !current && !engine.busy);
+  const remaining = schedule ? remainingMs(schedule, Date.now()) / 1000 : Infinity;
+  life.tick(dt, lifeRemaining(remaining, voyage, reducedMotion), started && !current && !engine.busy);
+  voyageTick(dt, remaining);
   if (!current) { showAct(null); return; }
   const elapsed = (Date.now() - current.startedAt) / 1000;
   for (const cue of current.runner.due(elapsed)) engine.fire(cue);
@@ -209,9 +218,120 @@ function renderScene() {
   }
 }
 
+// ---------- voyage mode ----------
+
+const sceneIds = () => scenes.map((s) => s.id);
+
+function renderVoyage() {
+  const btn = $('voyageBtn');
+  btn.setAttribute('aria-pressed', String(voyage));
+  btn.setAttribute('aria-label', voyage ? 'Voyage mode is on: sail to the next city after each show' : 'Voyage mode is off: stay in this city');
+  btn.title = voyage ? 'Voyage mode on (V)' : 'Voyage mode (V)';
+}
+
+function setVoyage(on) {
+  voyage = !!on;
+  try { saveVoyage(localStorage, voyage); } catch { /* no storage: keep going */ }
+  renderVoyage();
+  if (voyage) {
+    toast(`Voyage on · next stop ${getScene(nextStop(sceneIds(), scene.id)).name}`);
+  } else {
+    cancelSail();         // turning it off keeps the city we are in
+    sailReady = null;
+    toast('Voyage off · staying here');
+  }
+}
+
+function drawSail(dark, progress) {
+  const el = $('sail');
+  el.style.opacity = dark.toFixed(3);
+  el.style.visibility = dark > 0.001 ? 'visible' : 'hidden';
+  $('sailLine').style.width = `${(progress * 100).toFixed(1)}%`;
+}
+
+// The city changes here, and only here, in voyage mode: no show is started
+// and the schedule is not touched, so the countdown simply carries on.
+function arrive(next, prepared) {
+  scene = next;
+  store(SCENE_KEY, scene.id);
+  current = null;
+  lastTitle = null;
+  lastShow = null;
+  pendingShared = null;
+  if (prepared) engine.adopt(prepared); else engine.setScene(scene);
+  sound.hushLife();
+  sound.setScene(scene.sound);
+  life = makeLife();
+  renderScene();
+}
+
+function beginSail() {
+  const next = getScene(nextStop(sceneIds(), scene.id));
+  sail = { next, t: 0, swapped: false };
+  sailedFor = schedule ? schedule.nextAt : 0;
+  $('sailStop').textContent = stopLabel(sceneIds(), next.id);
+  $('sailTo').textContent = sailCaption(next.name);
+  sound.life('sail', { now: true });
+}
+
+function endSail() {
+  sail = null;
+  sailReady = null;
+  drawSail(0, 0);
+  $('sailStop').textContent = '';
+  $('sailTo').textContent = '';
+}
+
+// A show is about to start, or the visitor asked for something else: if we
+// are mid-sail, arrive at once (in the dark) and lift the night.
+function finishSail() {
+  if (!sail) return;
+  if (!sail.swapped) arrive(sail.next, sailReady && sailReady.id === sail.next.id ? sailReady.prepared : null);
+  endSail();
+}
+
+// Voyage mode was switched off, or another city was picked by hand, before
+// the city changed: stay, and lift the night.
+function cancelSail() {
+  if (!sail) return;
+  if (sail.swapped) { endSail(); return; }
+  endSail();
+  sailedFor = 0;
+}
+
+// Called every frame. Paints the next city in small steps during the quiet
+// minute, then sails when the time has come.
+function voyageTick(dt, remaining) {
+  const state = {
+    on: voyage, started, showing: !!current, busy: engine.busy, life: life.active.length,
+    remaining, hidden: document.hidden, sailing: !!sail, sailed: !!schedule && sailedFor === schedule.nextAt,
+  };
+  if (sail) {
+    sail.t += dt;
+    const at = sailAt(sail.t, reducedMotion);
+    if (at.swap && !sail.swapped) {
+      arrive(sail.next, sailReady && sailReady.id === sail.next.id ? sailReady.prepared : null);
+      sail.swapped = true;
+    }
+    drawSail(at.dark, Math.min(1, sail.t / sailLength(reducedMotion)));
+    if (at.stage === 'done') endSail();
+    return;
+  }
+  if (shouldPrepare(state, reducedMotion)) {
+    const id = nextStop(sceneIds(), scene.id);
+    if (!sailReady || sailReady.id !== id) sailReady = { id, prepared: engine.prepare(getScene(id)), wait: 0 };
+    // One small step, then a pause, so no two heavy frames come together.
+    sailReady.wait -= dt;
+    if (!sailReady.prepared.ready && sailReady.wait <= 0) { sailReady.prepared.step(); sailReady.wait = 0.35; }
+  }
+  if (shouldSail(state, reducedMotion)) beginSail();
+}
+
 function setScene(id) {
   const next = getScene(id);
   closeMenu();
+  if (sail) { if (sail.swapped) endSail(); else cancelSail(); }
+  sailReady = null;
   if (next === scene) return;
   scene = next;
   store(SCENE_KEY, scene.id);
@@ -446,7 +566,7 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; } };
+window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, set schedule(value) { schedule = value; } };
 
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).
@@ -461,6 +581,7 @@ if (link.debug) {
       + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
       + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
       + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
+      + `voyage: ${voyage ? (sail ? `sailing to ${sail.next.name}` : sailReady ? `on · ${getScene(sailReady.id).name} ${sailReady.prepared.ready ? 'ready' : 'being painted'}` : 'on') : 'off'}\n`
       + `life sounds: press ${LIFE_SOUNDS.map((kind, i) => `${i + 1} ${kind}`).join(' · ')}`;
   }, 500);
 }
@@ -477,6 +598,7 @@ $('ambientBtn').setAttribute('aria-pressed', String(ambient));
 buildMenu();
 renderScene();
 renderMute();
+renderVoyage();
 renderFullscreen();
 updateClock();
 if (!fsRequest) $('fsBtn').hidden = true;
@@ -529,6 +651,7 @@ $('volume').addEventListener('input', (e) => {
 $('volume').step = String(VOLUME_STEP * 100);
 $('shareBtn').addEventListener('click', shareLink);
 $('snapBtn').addEventListener('click', savePostcard);
+$('voyageBtn').addEventListener('click', () => setVoyage(!voyage));
 $('ambientBtn').addEventListener('click', () => setAmbient(true, { hint: true }));
 $('linkDone').addEventListener('click', closeLinkBox);
 $('fsBtn').addEventListener('click', toggleFullscreen);
@@ -559,6 +682,7 @@ document.addEventListener('keydown', (e) => {
   if (key === 'm') toggleMute();
   else if (key === 'f') toggleFullscreen();
   else if (key === 'p' && !ambient) savePostcard();
+  else if (key === 'v') setVoyage(!voyage);
   else if (key === 'a') setAmbient(!ambient, { hint: true });
   else if ((key === ' ' || key === 'enter') && !onControl) { e.preventDefault(); startShow(); }
 });

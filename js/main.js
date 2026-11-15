@@ -49,7 +49,7 @@ let sail = null;         // a sail under way: { next, t, swapped }
 let sailReady = null;    // the next city, painted offscreen: { id, prepared, wait }
 let sailedFor = 0;       // the show time (schedule.nextAt) that has had its sail
 
-// New Year's Eve mode (see js/newyear.js). On 31 December the clock counts
+// New Year's Eve mode (see js/newyear.js). From 30 December the clock counts
 // down to each city's real midnight. `?clock=` pretends it is another
 // moment, for testing: it only moves this mode's idea of "now".
 const clockOffset = link.clock !== null ? link.clock - Date.now() : 0;
@@ -726,7 +726,7 @@ function newYearLine() {
       text += newYear.active
         ? ` · welcoming ${newYear.year} · next midnight ${nextMidnight()?.name ?? 'none left'}\n  on since ${both(span.start)}`
         : `\n  starts ${both(span.start)}`;
-      text += `\n  = when 31 Dec begins in your time zone (${span.zone})\n  ends ${both(span.end)}, after midnight in ${span.last.name}`;
+      text += `\n  = when 30 Dec begins in your time zone (${span.zone})\n  ends ${both(span.end)}, after midnight in ${span.last.name}`;
     }
   } catch { /* no time zone data: just on/off */ }
   if (link.clock !== null) text += `\n  test clock ${new Date(now).toISOString().slice(0, 19)}Z`;

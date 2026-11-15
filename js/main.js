@@ -11,8 +11,8 @@ import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
 import { createLife } from './life.js';
 import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
-import { drawPostcard, postcardCaption, postcardFileName, postcardRoute } from './postcard.js';
-import { newYearState, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
+import { drawPostcard, postcardCaption, postcardFileName, postcardRoute, postcardLayout, createMomentPicker } from './postcard.js';
+import { newYearState, newYearWindow, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
 import { nextStop, stopLabel, sailCaption, initialVoyage, loadVoyage, saveVoyage, shouldPrepare, shouldSail, lifeRemaining, sailAt, sailLength } from './voyage.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
@@ -203,6 +203,7 @@ engine.onTick = (now, dt) => {
   const remaining = schedule ? remainingMs(schedule, Date.now()) / 1000 : Infinity;
   life.tick(dt, lifeRemaining(remaining, !!sailTarget(), reducedMotion), started && !current && !engine.busy);
   voyageTick(dt, remaining);
+  if (snapWatch) snapWatch();
   if (!current) { showAct(null); return; }
   const elapsed = (Date.now() - current.startedAt) / 1000;
   for (const cue of current.runner.due(elapsed)) engine.fire(cue);
@@ -505,14 +506,88 @@ async function shareLink() {
 
 // ---------- postcard ----------
 
-// A picture of the sky as it is at this moment, on a card with a caption.
-// Everything happens here, on the press of the button: the show itself
-// never does any extra work for it.
-function makePostcard() {
+// A picture of the sky on a card with a caption. Everything happens here,
+// on the press of the button: the show itself never does any extra work
+// for it.
+
+// Where the city is on the canvas, in canvas pixels (for the phone card).
+function postcardView() {
+  const v = engine.view;
+  return { horizon: v.hz * v.dpr, skylineTop: engine.litBand.h ? engine.litBand.y * v.dpr : undefined };
+}
+const postcardInfo = () => ({ id: scene.id, name: scene.name, country: scene.country, showNo: showCount, date: new Date() });
+
+function makePostcard(source = canvas, view = postcardView(), info = postcardInfo()) {
   const css = getComputedStyle(document.documentElement);
-  const info = { name: scene.name, country: scene.country, showNo: showCount, date: new Date() };
   const fonts = { display: css.getPropertyValue('--display').trim(), text: css.getPropertyValue('--text').trim() };
-  return { card: drawPostcard(canvas, info, fonts), caption: postcardCaption(info), fileName: postcardFileName({ id: scene.id, showNo: showCount }) };
+  return { card: drawPostcard(source, info, fonts, view), caption: postcardCaption(info), fileName: postcardFileName({ id: info.id, showNo: info.showNo }) };
+}
+
+// How much firework light is in the part of the sky that goes on the card.
+// Read from the small glow picture the engine keeps anyway, shrunk to a few
+// thousand pixels. Each of those pixels counts only up to LIGHT_CAP, and
+// the score is lowered while the flash of a burst is still in the air
+// (engine.light.i): so a burst that has opened wide across the sky scores
+// more than the white ball at the moment it goes off.
+const LIGHT_CAP = 8;      // out of 255
+const PROBE_W = 32, PROBE_H = 40;
+let lightProbe = null;
+function skyLight(view) {
+  if (!lightProbe) {
+    const c = document.createElement('canvas');
+    c.width = PROBE_W;
+    c.height = PROBE_H;
+    lightProbe = c.getContext('2d', { willReadFrequently: true });
+    lightProbe.imageSmoothingQuality = 'high';
+  }
+  const part = postcardLayout(canvas.width, canvas.height, undefined, view).source;
+  const glow = engine.glow.c, kx = glow.width / canvas.width, ky = glow.height / canvas.height;
+  lightProbe.globalCompositeOperation = 'copy';
+  lightProbe.drawImage(glow, part.x * kx, part.y * ky, part.w * kx, part.h * ky, 0, 0, PROBE_W, PROBE_H);
+  const data = lightProbe.getImageData(0, 0, PROBE_W, PROBE_H).data;
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) sum += Math.min(LIGHT_CAP, (data[i] + data[i + 1] + data[i + 2]) / 3);
+  return (sum / (data.length / 4)) * (1 - 0.6 * Math.min(1, engine.light.i));
+}
+
+// The frame for the postcard: { source, view, info }.
+// Desktop, or a quiet sky: the canvas as it is now, as always.
+// A phone during a show: watch for up to a few seconds and keep the frame
+// with the most light (see createMomentPicker), so that a card asked for
+// at the start of a show is not an empty sky.
+let snapWatch = null;    // called every frame while a postcard is waiting
+function bestMoment() {
+  const view = postcardView();
+  const live = () => !!current || engine.busy;
+  if (!postcardLayout(canvas.width, canvas.height, undefined, view).phone || !live()) {
+    return Promise.resolve({ source: canvas, view, info: postcardInfo() });
+  }
+  toast('Waiting for the brightest moment\u2026');
+  return new Promise((done) => {
+    const picker = createMomentPicker();
+    const held = document.createElement('canvas');
+    held.width = canvas.width;
+    held.height = canvas.height;
+    const pen = held.getContext('2d');
+    const from = scene, t0 = performance.now();
+    let info = postcardInfo(), frames = 0;
+    const finish = () => { snapWatch = null; clearTimeout(guard); done({ source: held, view, info }); };
+    // If no frames are drawn (the tab went to the background), do not wait for ever.
+    const guard = setTimeout(finish, 5000);
+    const look = () => {
+      // Another city, or another window size: what we hold is the card.
+      if (scene !== from || canvas.width !== held.width || canvas.height !== held.height) { finish(); return; }
+      const answer = picker.feed((performance.now() - t0) / 1000, skyLight(view), live());
+      if (answer.keep) {
+        pen.globalCompositeOperation = 'copy';
+        pen.drawImage(canvas, 0, 0);
+        info = postcardInfo();
+      }
+      if (answer.done) finish();
+    };
+    snapWatch = () => { frames += 1; if (frames % 2 === 0) look(); };
+    look();
+  });
 }
 
 function download(blob, fileName) {
@@ -532,7 +607,8 @@ async function savePostcard() {
   snapping = true;
   $('snapBtn').disabled = true;
   try {
-    const { card, caption, fileName } = makePostcard();
+    const moment = await bestMoment();
+    const { card, caption, fileName } = makePostcard(moment.source, moment.view, moment.info);
     const blob = await new Promise((done) => card.toBlob(done, 'image/png'));
     if (!blob) throw new Error('no picture');
     // Phones: the share sheet, if it can take a picture file.
@@ -634,7 +710,28 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
+window.boomvoyage = { engine, sound, screenLock, makePostcard, bestMoment, skyLight, postcardView, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
+
+// ?debug=1: "new year mode: on/off", when it starts and ends (in the
+// visitor's own time and in UTC), and the test clock if one is set.
+// It only reports: nothing here changes what the mode does.
+function newYearLine() {
+  const now = Date.now() + clockOffset;
+  let text = `new year mode: ${newYear.active ? 'on' : 'off'}`;
+  try {
+    const span = newYearWindow(now, cities);
+    if (span) {
+      const local = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      const both = (ms) => `${local.format(new Date(ms))} (${new Date(ms).toISOString().slice(0, 16)}Z)`;
+      text += newYear.active
+        ? ` · welcoming ${newYear.year} · next midnight ${nextMidnight()?.name ?? 'none left'}\n  on since ${both(span.start)}`
+        : `\n  starts ${both(span.start)}`;
+      text += `\n  = when 31 Dec begins in your time zone (${span.zone})\n  ends ${both(span.end)}, after midnight in ${span.last.name}`;
+    }
+  } catch { /* no time zone data: just on/off */ }
+  if (link.clock !== null) text += `\n  test clock ${new Date(now).toISOString().slice(0, 19)}Z`;
+  return text;
+}
 
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).
@@ -649,7 +746,7 @@ if (link.debug) {
       + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
       + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
       + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
-      + (link.clock !== null || newYear.active ? `new year: ${newYear.active ? `${newYear.year} · next midnight ${nextMidnight()?.name ?? 'none left'}` : 'not today'}${link.clock !== null ? ` · test clock ${new Date(Date.now() + clockOffset).toISOString().slice(0, 19)}Z` : ''}\n` : '')
+      + `${newYearLine()}\n`
       + `voyage: ${voyage ? (sail ? `sailing to ${sail.next.name}` : sailReady ? `on · ${getScene(sailReady.id).name} ${sailReady.prepared.ready ? 'ready' : 'being painted'}` : 'on') : 'off'}\n`
       + `life sounds: press ${LIFE_SOUNDS.map((kind, i) => `${i + 1} ${kind}`).join(' · ')}`;
   }, 500);

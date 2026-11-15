@@ -1,5 +1,5 @@
 // The quiet sounds of "life between shows": a distant boat horn, a few soft
-// laps of water, three gentle notes.
+// laps of water, three gentle notes, a sail being set.
 //
 // Each sound is first written down as a PLAN: plain numbers that say which
 // tones or noise play, when each starts and stops, and how its volume moves.
@@ -18,6 +18,10 @@ export const MIN_FADE = 0.03;           // seconds
 // A plan: { kind, length, voices: [voice] }. Times are seconds from the start.
 // A voice: { source: 'tone' | 'noise', wave?, freq?, filter?: { type, freq, q },
 //            start, stop, env: [[time, level], ...] }
+// A tone may also have `glide`: [[time, freq], ...], its pitch moving in
+// straight lines between those points. A point marked 'jump' is set at once
+// (only ever used while the voice is silent). A filter may have `sweep`:
+// the same, for the filter's own frequency.
 export function lifeSoundPlan(kind, rand = Math.random) {
   if (kind === 'horn') {
     // One long two-note blast, far away. Sawtooth waves through a low-pass
@@ -86,15 +90,49 @@ export function lifeSoundPlan(kind, rand = Math.random) {
     };
   }
   if (kind === 'sail') {
-    // Setting sail (voyage mode): a long soft breath of wind, and two quiet
-    // notes a fifth apart that rise and fall with it.
-    const wind = { source: 'noise', filter: { type: 'bandpass', freq: 380 + rand() * 60, q: 0.5 }, start: 0, stop: 4.3, env: [[0, 0], [1.7, 0.028], [2.6, 0.02], [4.2, 0]] };
-    const notes = [392, 587.3].map((freq, i) => (
-      { source: 'tone', wave: 'sine', freq, start: 0.3 * i, stop: 4.1, env: [[0.3 * i, 0], [1.4 + 0.3 * i, 0.007], [2.6, 0.005], [4, 0]] }
-    ));
-    return { kind, length: 4.4, voices: [wind, ...notes] };
+    // Setting sail (voyage mode). Three things, none of them a wash of
+    // noise (that is what the water sound is):
+    // 1. cloth: the sail flaps a few times. Each flap is a short soft thump
+    //    (a tone that drops in pitch) with a tiny puff of air on top;
+    // 2. rope and wood: a slow creak. A very low sawtooth (about 25 to 45
+    //    ticks a second, speeding up as the rope takes the strain) rung
+    //    through two narrow filters, like a dry hinge;
+    // 3. the hull moving off: one low, short swish whose tone rises and
+    //    falls. It is the quietest part and comes last.
+    const first = 0.1, second = 0.72 + rand() * 0.16, third = 2.25 + rand() * 0.1;
+    const flaps = [[first, 0.03], [second, 0.022], [third, 0.026], [third + 0.24, 0.016]];
+    const thumpEnv = [], puffEnv = [], drop = [];
+    for (const [at, top] of flaps) {
+      thumpEnv.push([at, 0], [at + MIN_FADE, top], [at + 0.2, 0]);
+      puffEnv.push([at, 0], [at + MIN_FADE, top * 0.35], [at + 0.11, 0]);
+      drop.push([at, 210, 'jump'], [at + 0.2, 105]);
+    }
+    const thump = { source: 'tone', part: 'flap', wave: 'triangle', freq: 210, glide: drop, start: first, stop: third + 0.5, env: thumpEnv };
+    const puff = { source: 'noise', part: 'flap', filter: { type: 'bandpass', freq: 950, q: 0.8 }, start: first, stop: third + 0.4, env: puffEnv };
+
+    const pull = 1.15 + rand() * 0.1, ease = 3.25 + rand() * 0.1;
+    const strain = [[pull, 24, 'jump'], [pull + 0.8, 43], [pull + 0.95, 38], [ease, 30, 'jump'], [ease + 0.5, 41]];
+    const creak = (freq, q, top) => ({
+      source: 'tone', part: 'creak', wave: 'sawtooth', freq: 24, glide: strain, filter: { type: 'bandpass', freq, q }, start: pull, stop: ease + 0.6,
+      env: [[pull, 0], [pull + 0.15, top], [pull + 0.65, top * 0.8], [pull + 0.95, 0], [ease, 0], [ease + 0.12, top * 0.65], [ease + 0.55, 0]],
+    });
+
+    const swish = {
+      source: 'noise', part: 'swish',
+      filter: { type: 'lowpass', freq: 200, q: 0.4, sweep: [[2.5, 200], [3.3, 520], [4.3, 180]] },
+      start: 2.5, stop: 4.4, env: [[2.5, 0], [3.3, 0.024], [4.3, 0]],
+    };
+    return { kind, length: 4.5, voices: [thump, puff, creak(880, 3.5, 0.03), creak(1750, 6, 0.014), swish] };
   }
   return null;
+}
+
+// Moves a pitch or a filter frequency along [[time, value, 'jump'?], ...].
+function moveParam(param, points, at) {
+  points.forEach(([time, value, how], i) => {
+    if (i === 0 || how === 'jump') param.setValueAtTime(value, at + time);
+    else param.linearRampToValueAtTime(value, at + time);
+  });
 }
 
 // Builds a plan with Web Audio nodes, starting at time `at` of `ctx`, and
@@ -117,6 +155,7 @@ export function playLifeSound(ctx, out, plan, at, noise) {
       filter.type = voice.filter.type;
       filter.frequency.value = voice.filter.freq;
       filter.Q.value = voice.filter.q;
+      if (voice.filter.sweep) moveParam(filter.frequency, voice.filter.sweep, at);
       filter.connect(gain);
       input = filter;
     }
@@ -132,6 +171,7 @@ export function playLifeSound(ctx, out, plan, at, noise) {
       source = ctx.createOscillator();
       source.type = voice.wave;
       source.frequency.value = voice.freq;
+      if (voice.glide) moveParam(source.frequency, voice.glide, at);
       source.connect(input);
       source.start(at + voice.start);
     }

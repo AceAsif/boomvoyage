@@ -65,6 +65,91 @@ test('the horn can be heard: it is not the quietest sound and has tones above 20
   }
 });
 
+// The sail sound was once a breath of filtered noise and was heard as "the
+// water sound, only quieter". These rules keep the two apart.
+const area = (env) => env.slice(1).reduce((sum, p, i) => sum + (p[0] - env[i][0]) * (p[1] + env[i][1]) / 2, 0);
+const peak = (v) => Math.max(...v.env.map((p) => p[1]));
+
+test('the sail sound is made of cloth, rope and a swish, not of a wash of noise', () => {
+  for (const plan of plans('sail')) {
+    const parts = (name) => plan.voices.filter((v) => v.part === name);
+    assert.deepEqual([...new Set(plan.voices.map((v) => v.part))].sort(), ['creak', 'flap', 'swish']);
+    const tones = plan.voices.filter((v) => v.source === 'tone'), noises = plan.voices.filter((v) => v.source === 'noise');
+
+    // The body is tones: the loudest voice is a tone, and tones carry more sound than noise.
+    const loudest = plan.voices.reduce((a, b) => (peak(b) > peak(a) ? b : a));
+    assert.equal(loudest.source, 'tone');
+    assert.ok(tones.reduce((sum, v) => sum + area(v.env), 0) > noises.reduce((sum, v) => sum + area(v.env), 0), 'more noise than tone');
+
+    // Cloth: at least three flaps, each a short thump that falls in pitch.
+    const thump = parts('flap').find((v) => v.source === 'tone');
+    const flaps = thump.env.filter((p, i) => i > 0 && p[1] > 0);
+    assert.ok(flaps.length >= 3, 'a sail flaps more than once');
+    for (let i = 0; i + 1 < thump.glide.length; i += 2) {
+      assert.equal(thump.glide[i][2], 'jump');
+      assert.ok(thump.glide[i + 1][1] < thump.glide[i][1] * 0.7, 'the thump must fall in pitch');
+      assert.ok(thump.glide[i + 1][0] - thump.glide[i][0] <= 0.3, 'a flap is short');
+    }
+    assert.notEqual(thump.wave, 'sine', 'a low pure tone is lost on small speakers');
+
+    // Rope and wood: a slow sawtooth (single ticks, not a note) that speeds up, through narrow filters.
+    assert.ok(parts('creak').length >= 1);
+    for (const v of parts('creak')) {
+      assert.equal(v.source, 'tone');
+      assert.equal(v.wave, 'sawtooth');
+      assert.ok(v.glide.every((p) => p[1] >= 15 && p[1] <= 60), 'the creak ticks slowly');
+      assert.ok(v.glide[1][1] > v.glide[0][1] * 1.3, 'the creak tightens');
+      assert.equal(v.filter.type, 'bandpass');
+      assert.ok(v.filter.q >= 3 && v.filter.freq >= 600);
+    }
+
+    // The swish: one, short, low, moving, and never the loudest thing.
+    assert.equal(parts('swish').length, 1);
+    const swish = parts('swish')[0];
+    assert.ok(swish.stop - swish.start <= 2, 'a long swish is the water sound again');
+    assert.ok(swish.filter.sweep.length >= 3 && Math.max(...swish.filter.sweep.map((p) => p[1])) <= 540);
+    assert.ok(peak(swish) < peak(thump));
+  }
+});
+
+test('the sail sound is clearly not the water sound', () => {
+  const water = lifeSoundPlan('water', () => 0.5), sail = lifeSoundPlan('sail', () => 0.5);
+  assert.ok(water.voices.every((v) => v.source === 'noise'), 'water is all noise');
+  assert.ok(sail.voices.filter((v) => v.source === 'tone').length >= 2);
+  const band = water.voices[0].filter;
+  for (const v of sail.voices.filter((n) => n.source === 'noise')) {
+    // No noise in the sail sound sits in the water's band, carries as much sound, or is as loud.
+    const same = v.filter.type === band.type && Math.abs(v.filter.freq - band.freq) < 250;
+    assert.ok(!same, 'a sail noise uses the water filter');
+    assert.ok(area(v.env) < area(water.voices[0].env) / 3, 'a sail noise carries as much sound as the water');
+    assert.ok(peak(v) < peak(water.voices[0]) * 0.6);
+  }
+});
+
+test('pitch glides and filter sweeps are built as ramps, with jumps only in silence', () => {
+  const ctx = fakeAudio();
+  const plan = lifeSoundPlan('sail', () => 0.5);
+  playLifeSound(ctx, {}, plan, 50, { duration: 2 });
+  const tones = ctx.made.filter((n) => n.type0 === 'tone');
+  plan.voices.filter((v) => v.source === 'tone').forEach((v, i) => {
+    const events = tones[i].frequency.events;
+    assert.equal(events.length, v.glide.length);
+    v.glide.forEach((point, k) => {
+      assert.equal(events[k][0], k === 0 || point[2] === 'jump' ? 'set' : 'ramp');
+      assert.equal(events[k][1], point[1]);
+      assert.ok(Math.abs(events[k][2] - (50 + point[0])) < 1e-9);
+      if (point[2] === 'jump' && k > 0) {
+        // the volume is zero at the moment of the jump
+        const before = v.env.filter((p) => p[0] <= point[0] + 1e-9).at(-1);
+        assert.equal(before[1], 0, 'the pitch jumps while the voice can be heard');
+      }
+    });
+  });
+  const swept = ctx.made.filter((n) => n.type0 === 'filter' && n.frequency.events.length);
+  assert.equal(swept.length, 1);
+  assert.deepEqual(swept[0].frequency.events.map((e) => e[0]), ['set', 'ramp', 'ramp']);
+});
+
 test('an unknown sound has no plan', () => {
   assert.equal(lifeSoundPlan('trumpet'), null);
 });

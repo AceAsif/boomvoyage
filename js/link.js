@@ -7,6 +7,7 @@ import { parseClock } from './newyear.js';
 //   ?theme=ember-jade      which colour theme that show used
 //   ?ambient=1             start in ambient (TV) mode
 //   ?voyage=1              start with voyage mode on (?voyage=0: off)
+//   ?voice=0               start with the station voice off (?voice=1: on)
 //   ?clock=2026-12-31T12:00:00Z   pretend it is this moment (for testing
 //                          New Year's Eve mode; it changes nothing else)
 //   ?debug=1               show a small frame-rate meter
@@ -45,8 +46,10 @@ export function parseLink(search = '') {
   // Voyage mode has three answers: on, off, or "not said" (null), in which
   // case the visitor's saved choice is used.
   const voyage = p.has('voyage') ? flag('voyage') : null;
+  // The station voice of voyage mode, the same way (see js/voice.js).
+  const voice = p.has('voice') ? flag('voice') : null;
 
-  return { scene: id(p.get('scene')), seed, theme: id(p.get('theme')), ambient: flag('ambient'), debug: flag('debug'), voyage, clock: parseClock(p.get('clock')) };
+  return { scene: id(p.get('scene')), seed, theme: id(p.get('theme')), ambient: flag('ambient'), debug: flag('debug'), voyage, voice, clock: parseClock(p.get('clock')) };
 }
 
 // Builds the link to share. `href` is the address of the current page; any

@@ -209,6 +209,18 @@ body.ambient .hold-ring { display: none; }
 .scene-menu li[aria-selected="true"] { color: var(--ember); }
 .scene-menu li.soon { cursor: default; color: var(--ivory-dim); font-style: italic; font-family: var(--display); }
 .scene-menu li.soon:hover { background: none; }
+/* A credit, small and quiet, at the foot of the place menu. */
+.scene-menu li.credit {
+  cursor: default;
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  color: var(--ivory-dim);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+.scene-menu li.credit:hover { background: none; }
 
 /* Show title: appears for a few seconds when a show begins */
 .show-title {
@@ -286,6 +298,9 @@ body.ambient .hold-ring { display: none; }
 .icon:disabled { opacity: 0.45; cursor: default; }
 /* An on/off button that glows when it is on (voyage mode). */
 .icon.toggle[aria-pressed="true"] { color: var(--ember); border-color: var(--ember); box-shadow: 0 0 14px rgba(255, 207, 138, 0.28); }
+/* The station voice switch only matters in voyage mode, so it is only there then. */
+#voiceBtn { display: none; }
+body.voyage-on #voiceBtn { display: inline-grid; }
 .icon .i-off { display: none; }
 .icon[aria-pressed="true"] .i-on { display: none; }
 .icon[aria-pressed="true"] .i-off { display: block; }
@@ -598,6 +613,18 @@ body.ambient #stage { cursor: none; }
   #voyageBtn { grid-column: 2; grid-row: 2; }
   .vol { grid-column: 3; grid-row: 2; }
   #fsBtn { grid-column: 4; grid-row: 2; }
+  /* Voyage mode adds the station voice switch: four slightly smaller
+     buttons in a row, and the clock takes the room of the first one. */
+  body.voyage-on .bottom { grid-template-columns: 1fr 42px 42px 42px 42px; column-gap: 8px; }
+  body.voyage-on .icon { width: 42px; }
+  body.voyage-on .clock { grid-column: 1 / span 2; }
+  body.voyage-on #snapBtn { grid-column: 3; }
+  body.voyage-on #shareBtn { grid-column: 4; }
+  body.voyage-on #ambientBtn { grid-column: 5; }
+  body.voyage-on #voyageBtn { grid-column: 2; }
+  body.voyage-on #voiceBtn { grid-column: 3; grid-row: 2; }
+  body.voyage-on .vol { grid-column: 4; }
+  body.voyage-on #fsBtn { grid-column: 5; }
   .pill { padding: 0 16px; letter-spacing: 0.14em; }
   .scene-btn { padding: 0 13px; font-size: 12px; }
   /* On a narrow phone the harbour name may shorten with "…" instead of leaving the screen. */

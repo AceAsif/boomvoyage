@@ -48,9 +48,50 @@ button:focus-visible {
   width: 100%;
   height: 100%;
   display: block;
-  touch-action: manipulation;
+  /* The sky is for playing in (tap, long press, drag): the browser must not
+     scroll, zoom or select anything while a finger is on it. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   cursor: crosshair;
 }
+
+/* The ring that grows round the finger or cursor during a long press. Its
+   place (--x, --y) and its times (--wait, --hold) are set by main.js. */
+.hold-ring {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  border: 1.5px solid var(--ember);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(255, 190, 104, 0.35), inset 0 0 10px rgba(255, 190, 104, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(var(--x, 0), var(--y, 0)) scale(0.2);
+}
+/* Larger under a finger, so it shows round the fingertip. */
+.hold-ring.is-touch { width: 112px; height: 112px; margin: -56px 0 0 -56px; }
+.hold-ring.is-on { animation: hold-ring var(--hold, 380ms) linear var(--wait, 120ms) both; }
+.hold-ring.is-done { animation: hold-ring-out 280ms ease-out both; }
+@keyframes hold-ring {
+  from { opacity: 0; transform: translate(var(--x, 0), var(--y, 0)) scale(0.2); }
+  15% { opacity: 0.9; }
+  to { opacity: 0.9; transform: translate(var(--x, 0), var(--y, 0)) scale(1); }
+}
+@keyframes hold-ring-out {
+  from { opacity: 0.9; transform: translate(var(--x, 0), var(--y, 0)) scale(1); }
+  to { opacity: 0; transform: translate(var(--x, 0), var(--y, 0)) scale(1.4); }
+}
+/* Reduce motion: no growing, the ring is simply there while pressing. */
+@media (prefers-reduced-motion: reduce) {
+  .hold-ring.is-on { opacity: 0.8; transform: translate(var(--x, 0), var(--y, 0)) scale(1); }
+}
+body.ambient .hold-ring { display: none; }
 
 /* Soft cinema vignette so the eye stays in the middle of the sky. */
 .vignette {

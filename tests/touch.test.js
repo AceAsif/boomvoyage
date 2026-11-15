@@ -299,3 +299,45 @@ test('nothing a visitor fires uses Math.random, and a shared show stays the same
   }
   assert.deepEqual(buildShow(cfg, 3735928559, { theme: 'harbour-blue' }), before);
 });
+
+// ---------- the page ----------
+
+test('the page is set up for playing in the sky: no scrolling or zooming on the canvas, a ring, and the old tap still there', async () => {
+  const fs = await import('node:fs');
+  const read = (name) => fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+  const css = read('css/style.css'), html = read('index.html'), main = read('js/main.js'), engine = read('js/engine.js');
+
+  const stage = css.match(/#stage\s*\{[^}]*\}/)[0];
+  assert.match(stage, /touch-action:\s*none/, 'a finger on the sky must not scroll or zoom the page');
+  assert.match(stage, /user-select:\s*none/);
+  assert.match(html, /<div id="holdRing" class="hold-ring" aria-hidden="true"><\/div>/);
+  assert.match(css, /\.hold-ring\s*\{[^}]*pointer-events:\s*none/, 'the ring must never catch a tap');
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.hold-ring\.is-on/, 'reduce motion: a ring that does not grow');
+
+  // Touch and mouse through pointer events, with every way a press can end.
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'contextmenu']) {
+    assert.ok(main.includes(`canvas.addEventListener('${type}'`), `no ${type} handler on the canvas`);
+  }
+  // Ambient mode and the open menu still take the tap first, as before.
+  const down = main.slice(main.indexOf("canvas.addEventListener('pointerdown'"), main.indexOf("canvas.addEventListener('pointermove'"));
+  assert.ok(down.indexOf('if (!started) return;') < down.indexOf('startPress('));
+  assert.ok(down.indexOf('setAmbient(false)') < down.indexOf('startPress('));
+  assert.ok(down.indexOf('closeMenu()') < down.indexOf('startPress('));
+
+  // Everything the visitor fires goes through the limits and uses the visitor's own random numbers.
+  const sky = main.slice(main.indexOf('// ---------- playing in the sky ----------'), main.indexOf("canvas.addEventListener('contextmenu'"));
+  assert.ok(!sky.includes('Math.random'), 'the sky play code uses Math.random');
+  assert.match(sky, /engine\.launchAt\(x, y, \(big \? bigShell : tapShell\)\(tapColors\(\), skyRand\), skyRand\)/);
+  assert.match(sky, /if \(!skyAllows\('comet', skyBuckets\.comets\)\) continue;/);
+  assert.match(sky, /paceFor\(engine\.governor\.level, reducedMotion\)/, 'the limits follow the quality steps');
+  const launchAt = engine.slice(engine.indexOf('  launchAt('), engine.indexOf('  drawnComet('));
+  assert.ok(!launchAt.includes('Math.random'));
+});
+
+test('the keys are all still there', async () => {
+  const fs = await import('node:fs');
+  const main = fs.readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+  for (const key of ["key === 'm'", "key === 'f'", "key === 'p'", "key === 'v'", "key === 'a'", "key === ' '"]) {
+    assert.ok(main.includes(key), `the key handler for ${key} is gone`);
+  }
+});

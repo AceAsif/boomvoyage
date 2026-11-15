@@ -14,6 +14,7 @@ import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
 import { drawPostcard, postcardCaption, postcardFileName, postcardRoute, postcardLayout, createMomentPicker } from './postcard.js';
 import { newYearState, newYearWindow, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
 import { nextStop, stopLabel, sailCaption, initialVoyage, loadVoyage, saveVoyage, shouldPrepare, shouldSail, lifeRemaining, sailAt, sailLength } from './voyage.js';
+import { HOLD_MS, RING_DELAY_MS, MAX_PRESSES, LIMITS, startPress, pressMove, pressTick, pressUp, createTrail, cometFor, tapShell, bigShell, createBucket, paceFor, hasRoom, createRandom } from './touch.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
 const SCENE_KEY = 'boomvoyage.scene';
@@ -710,7 +711,7 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock, makePostcard, bestMoment, skyLight, postcardView, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
+window.boomvoyage = { engine, sound, get skyCount() { return skyCount; }, get presses() { return presses; }, screenLock, makePostcard, bestMoment, skyLight, postcardView, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
 
 // ?debug=1: "new year mode: on/off", when it starts and ends (in the
 // visitor's own time and in UTC), and the test clock if one is set.
@@ -747,6 +748,7 @@ if (link.debug) {
       + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
       + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
       + `${newYearLine()}\n`
+      + `your fireworks: ${skyCount.shells} shells · ${skyCount.big} big · ${skyCount.comets} comets · ${skyCount.heldBack} held back by the limits\n`
       + `voyage: ${voyage ? (sail ? `sailing to ${sail.next.name}` : sailReady ? `on · ${getScene(sailReady.id).name} ${sailReady.prepared.ready ? 'ready' : 'being painted'}` : 'on') : 'off'}\n`
       + `life sounds: press ${LIFE_SOUNDS.map((kind, i) => `${i + 1} ${kind}`).join(' · ')}`;
   }, 500);
@@ -792,13 +794,120 @@ window.addEventListener('resize', () => {
   requestAnimationFrame(() => { resizeQueued = false; engine.resize(); });
 });
 
-// Tap the sky to send up a shell of your own.
+// ---------- playing in the sky ----------
+
+// A tap sends up a shell of your own, a long press a big one, and a drag
+// draws a path that a fan of comets follows. The rules are in js/touch.js.
+// These fireworks have their own random numbers (so no show is changed by
+// them) and their own limits (so the frame rate is kept).
+const skyRand = createRandom((Date.now() ^ 0x5bd1e995) >>> 0);
+const skyBuckets = { shells: createBucket(LIMITS.shells), big: createBucket(LIMITS.big), comets: createBucket(LIMITS.comets), whoosh: createBucket(LIMITS.whoosh) };
+const skyCount = { shells: 0, big: 0, comets: 0, heldBack: 0 };   // shown with ?debug=1
+const presses = new Map();   // pointer id -> the press of that finger or mouse button
+const holdRing = $('holdRing');
+holdRing.style.setProperty('--wait', `${RING_DELAY_MS}ms`);
+holdRing.style.setProperty('--hold', `${HOLD_MS - RING_DELAY_MS}ms`);
+let ringOwner = null;        // the pointer the ring belongs to
+
+// May one more be fired? Not if the sky is full of sparks, and not faster
+// than the limit (slower on the lower quality steps and with reduce motion).
+function skyAllows(kind, bucket) {
+  const ok = hasRoom(kind, engine.P.count, engine.P.max) && bucket.take(performance.now(), paceFor(engine.governor.level, reducedMotion));
+  if (!ok) skyCount.heldBack += 1;
+  return ok;
+}
+
+function fireShell(x, y, big) {
+  if (!skyAllows(big ? 'big' : 'shell', big ? skyBuckets.big : skyBuckets.shells)) return false;
+  engine.launchAt(x, y, (big ? bigShell : tapShell)(tapColors(), skyRand), skyRand);
+  skyCount[big ? 'big' : 'shells'] += 1;
+  return true;
+}
+
+function showRing(id, x, y, touch) {
+  ringOwner = id;
+  holdRing.style.setProperty('--x', `${x}px`);
+  holdRing.style.setProperty('--y', `${y}px`);
+  holdRing.classList.toggle('is-touch', touch);
+  holdRing.classList.remove('is-on', 'is-done');
+  void holdRing.offsetWidth;          // so the animation starts again from the beginning
+  holdRing.classList.add('is-on');
+}
+// `fired`: the ring opens out and fades (the big shell is on its way).
+function hideRing(id, fired = false) {
+  if (ringOwner !== id) return;
+  ringOwner = null;
+  holdRing.classList.remove('is-on');
+  holdRing.classList.toggle('is-done', fired);
+}
+
+// The long press has arrived: one big shell (an ordinary one if a big one
+// went up a moment ago).
+function holdFired(id, press) {
+  hideRing(id, true);
+  if (!fireShell(press.x0, press.y0, true)) fireShell(press.x0, press.y0, false);
+}
+
+function endPress(id) {
+  const press = presses.get(id);
+  if (!press) return;
+  clearTimeout(press.timer);
+  presses.delete(id);
+  hideRing(id);
+  try { canvas.releasePointerCapture(id); } catch { /* not captured */ }
+}
+
 canvas.addEventListener('pointerdown', (e) => {
   if (!started) return;
   if (ambient) { setAmbient(false); return; } // a tap leaves ambient mode; it does not fire a shell
   if (menuOpen()) { closeMenu(); return; }
-  engine.launchAt(e.clientX, e.clientY, tapColors());
+  if (e.pointerType === 'mouse' && e.button !== 0) return;       // only the main mouse button plays
+  if (presses.size >= MAX_PRESSES || presses.has(e.pointerId)) return;
+  const press = startPress(performance.now(), e.clientX, e.clientY, e.pointerType);
+  press.trail = createTrail(e.clientX, e.clientY);
+  press.comets = 0;
+  press.colors = tapColors();
+  const check = () => {
+    if (presses.get(e.pointerId) !== press) return;
+    if (pressTick(press, performance.now()) === 'hold') holdFired(e.pointerId, press);
+    else if (press.state === 'pressing') press.timer = setTimeout(check, 16);   // the timer came a moment early
+  };
+  press.timer = setTimeout(check, HOLD_MS);
+  presses.set(e.pointerId, press);
+  // Keep getting this pointer's moves, also when it leaves the canvas.
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* an old browser: moves over the canvas still arrive */ }
+  if (presses.size === 1) showRing(e.pointerId, e.clientX, e.clientY, e.pointerType !== 'mouse');
 });
+
+canvas.addEventListener('pointermove', (e) => {
+  const press = presses.get(e.pointerId);
+  if (!press || pressMove(press, performance.now(), e.clientX, e.clientY) !== 'drag') return;
+  clearTimeout(press.timer);
+  hideRing(e.pointerId);
+  const view = { horizon: engine.view.hz, U: engine.U };
+  for (const place of press.trail.add(e.clientX, e.clientY)) {
+    const n = press.comets;
+    press.comets += 1;                 // counted even when held back, so the fan keeps its left-right order
+    if (!skyAllows('comet', skyBuckets.comets)) continue;
+    engine.drawnComet(cometFor(place, n, view, press.colors, skyRand));
+    skyCount.comets += 1;
+    if (skyBuckets.whoosh.take(performance.now())) sound.launch({ pan: engine.pan(place.x), dur: 0.35, whistle: false });
+  }
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  const press = presses.get(e.pointerId);
+  if (!press) return;
+  const what = pressUp(press, performance.now());
+  if (what === 'tap') fireShell(press.x0, press.y0, false);
+  else if (what === 'hold') holdFired(e.pointerId, press);
+  endPress(e.pointerId);
+});
+// The browser took the pointer away (a call came in, the tab changed):
+// nothing is fired.
+canvas.addEventListener('pointercancel', (e) => endPress(e.pointerId));
+// A long press must not open the browser's own menu over the sky.
+canvas.addEventListener('contextmenu', (e) => { if (started) e.preventDefault(); });
 
 $('launchBtn').addEventListener('click', () => {
   launch();

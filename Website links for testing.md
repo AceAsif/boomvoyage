@@ -209,6 +209,24 @@ ten seconds before the next show, the picture goes dark, says "Sailing to
 **Voyage mode off (whatever was saved before):**
 https://aceasif.github.io/boomvoyage/?voyage=0
 
+**Station voice (voyage mode with the voice on, and with the voice off):**
+https://aceasif.github.io/boomvoyage/?voyage=1&voice=1&debug=1
+https://aceasif.github.io/boomvoyage/?voyage=1&voice=0&debug=1
+
+What you should see and hear: with voyage mode on, a speech-bubble button
+sits next to the sailboat button. It is lit when the station voice is on.
+The panel says "station voice: on" or "off". When the picture says "Sailing
+to Tokyo", you hear the three bell notes and then a woman's voice: "Next
+stop, Tokyo". With `voice=0`, or after a tap on the speech-bubble button,
+you hear only the bells. Mute (M) silences the voice too, and the volume
+slider makes it quieter. The button is hidden while voyage mode is off. At
+the foot of the city menu there is a small line: "Station voice made with
+ElevenLabs".
+
+To hear it without waiting two minutes: open the first link, tap to start,
+and wait for the show to end (about 50 seconds) and then about one more
+minute. The voice only plays on a real sail, not with a debug key.
+
 **Ambient (TV) mode:**
 https://aceasif.github.io/boomvoyage/?ambient=1
 https://aceasif.github.io/boomvoyage/?ambient=1&debug=1
@@ -338,6 +356,12 @@ Tick each one when it looks and sounds right.
 - [ ] **Every city on your own phone, upright and sideways.** Use the links
       in section 1. Every landmark is whole, nothing is cut off, the buttons
       do not cover each other.
+- [ ] **Station voice on a phone.** Open the station voice link on a real
+      phone, tap to start, wait for "Sailing to ...". The voice says the
+      right city, once, right after the bells, with no long wait. Switch it
+      off with the speech-bubble button: the next sail has only the bells.
+      Close the page and open it again without `voice` in the link: your
+      choice is remembered.
 - [ ] **Playing in the sky.** Tap, long press and drag, on a desktop and on
       a phone (see "Hold-and-drag" above). The page never scrolls or zooms
       under your finger.

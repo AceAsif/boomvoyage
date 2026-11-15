@@ -89,6 +89,13 @@ first, and your choice is remembered.
 - Turning it off keeps you where you are. Picking a city by hand continues
   the voyage from that city.
 - "Copy link" still shares the city, seed and theme of the show you just saw.
+- **Station voice:** right after the travel chime a short recorded voice
+  says "Next stop, Tokyo". The speech-bubble button next to the sailboat
+  (shown while voyage mode is on) turns it on and off; it is on at first
+  and your choice is remembered. It follows mute and the volume slider. The
+  seven clips are in `audio/` (about 330 KB together); one is only loaded
+  when voyage mode is on, and a missing clip just means silence.
+  Station voice made with ElevenLabs.
 
 ### New Year's Eve
 
@@ -155,6 +162,7 @@ Add these to the address of the page (after a `?`, joined with `&`).
 | `theme` | `?theme=ember-jade` | Uses that colour theme for the shared show. It is the theme name in lower case with dashes, for example `harbour-blue`. |
 | `ambient` | `?ambient=1` | Starts in ambient (TV) mode. Also works with `true`, `yes`, `on`. Use `0` for off. |
 | `voyage` | `?voyage=1` | Starts with voyage mode on (see "Voyage mode" below). `?voyage=0` starts with it off. Without it, your last choice is used. |
+| `voice` | `?voice=0` | Starts with the station voice of voyage mode off. `?voice=1` starts with it on. Without it, your last choice is used (on at first). |
 | `debug` | `?debug=1` | Shows a small frame-rate meter (see "Check the speed" below). It also says "new year mode: on" or "off", and when the mode starts and ends. |
 | `clock` | `?clock=2026-12-31T12:00:00Z` | For testing New Year's Eve mode: the page pretends it is this moment. It must be a full date and time with `Z` or an offset such as `+11:00`. It changes nothing else, and anything it cannot read is ignored. |
 
@@ -285,6 +293,7 @@ There are 333 tests in `tests/`:
 - `quality.test.js` — the automatic quality steps (when to make the fireworks layer smaller, and when not).
 - `sydney.test.js` — where the bridge waterfall hangs on wide and on portrait screens.
 - `newyork.test.js`, `tokyo.test.js`, `hongkong.test.js` — each new city: registered, share link, own themes and act names, its signature effect and its anchors on seven screen sizes, landmarks whole, life layers and sounds, postcard caption.
+- `voice.test.js` — the station voice: each place's clip and that the file is there, the saved on/off choice, `?voice=0`, when a clip may load and start, and that it goes through the master volume and the limiter.
 - `voyage.test.js` — voyage mode: city order and wrap-around, never during a show, only after the life events have faded, the sail always fits before the next show, the city changes only in the dark, the saved on/off choice, `?voyage=1`.
 - `newyear.test.js` — New Year's Eve mode with a fake clock: time-zone maths (also summer time), each city's real midnight, the order of the midnights, on and off dates, the quiet gap before a midnight, the bigger midnight show, `?clock=` parsing.
 - `scenes.test.js` also checks every place the same way: a `?scene=` link opens it,
@@ -336,6 +345,7 @@ The empty `.nojekyll` file tells GitHub Pages to serve the files unchanged.
 ```
 index.html              the page: canvas, buttons, start overlay, link preview and install tags
 manifest.webmanifest    install as an app: name, colours, icons
+audio/                  the seven "Next stop, <city>" clips of the station voice
 icons/                  app icons (192, 512, maskable 512, iPhone 180)
 img/preview.png         the link preview picture (1200x630)
 css/style.css           all styling for the buttons and overlay
@@ -344,6 +354,7 @@ js/engine.js            canvas layers, frame loop, rockets, waterfall, reflectio
 js/particles.js         particle pool with a hard cap
 js/fireworks.js         burst shapes (peony, willow, ring, palm, crossette, ...)
 js/show.js              show choreography, act names and the cue runner (pure logic)
+js/voice.js             station voice: clip for each place, on/off choice, timing, the credit text (pure logic)
 js/voyage.js            voyage mode: order of the cities, when to sail, the fade (pure logic)
 js/newyear.js           New Year's Eve mode: time zones, midnights, the fake test clock (pure logic)
 js/life.js              life between shows: when the small events start and end (pure logic)

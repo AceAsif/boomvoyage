@@ -13,6 +13,7 @@ import { createLife } from './life.js';
 import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
 import { drawPostcard, postcardCaption, postcardFileName, postcardRoute, postcardLayout, createMomentPicker } from './postcard.js';
 import { newYearState, newYearWindow, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
+import { VOICE_CREDIT, VOICE_DELAY, voiceFile, initialVoice, loadVoice, saveVoice, shouldLoadVoice } from './voice.js';
 import { nextStop, stopLabel, sailCaption, initialVoyage, loadVoyage, saveVoyage, shouldPrepare, shouldSail, lifeRemaining, sailAt, sailLength } from './voyage.js';
 import { HOLD_MS, RING_DELAY_MS, MAX_PRESSES, LIMITS, startPress, pressMove, pressTick, pressUp, createTrail, cometFor, tapShell, bigShell, createBucket, paceFor, hasRoom, createRandom } from './touch.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
@@ -46,6 +47,8 @@ let lastShow = null;     // what "Copy link" shares: { scene, seed, theme }
 let ambient = link.ambient; // ambient (TV) mode: only the show on screen
 // Voyage mode: sail to the next city after each show (see js/voyage.js).
 let voyage = initialVoyage(link.voyage, (() => { try { return loadVoyage(localStorage); } catch { return null; } })());
+// The station voice of voyage mode: "Next stop, Tokyo" (see js/voice.js).
+let voice = initialVoice(link.voice, (() => { try { return loadVoice(localStorage); } catch { return null; } })());
 let sail = null;         // a sail under way: { next, t, swapped }
 let sailReady = null;    // the next city, painted offscreen: { id, prepared, wait }
 let sailedFor = 0;       // the show time (schedule.nextAt) that has had its sail
@@ -116,6 +119,7 @@ function startShow(now = Date.now(), { midnight = null } = {}) {
   lastShow = { scene: scene.id, seed: show.seed, theme: show.themeId };
   current = { runner: createRunner(show), startedAt: now };
   sound.hushLife();     // life sounds fade away as the show begins
+  sound.hushVoice();    // and so does the station voice, if a show was started in the middle of a sail
   schedule = restart(schedule ?? createSchedule(intervalMs(), now), now);
   refreshNewYear();
   alignWithMidnight();
@@ -278,6 +282,41 @@ function renderScene() {
   }
 }
 
+// ---------- station voice ----------
+
+// In voyage mode a short recorded voice names the next stop, right after
+// the travel chime. The rules are in js/voice.js, the playing in
+// js/audio.js. It never changes what is shown or when.
+function renderVoice() {
+  const btn = $('voiceBtn');
+  btn.setAttribute('aria-pressed', String(voice));
+  btn.setAttribute('aria-label', voice ? 'Station voice is on: a voice names the next stop' : 'Station voice is off');
+  btn.title = voice ? 'Station voice on' : 'Station voice off';
+}
+
+// Gets the clip for a place ready ahead of time, so that there is no wait
+// when it is needed. By default: the next stop of the voyage.
+function preloadVoice(id = nextStop(sceneIds(), scene.id)) {
+  if (!shouldLoadVoice({ voyage, voice, started })) return;
+  const file = voiceFile(id);
+  if (file) sound.loadVoice(file);
+}
+
+// "Next stop, <city>", a moment after the travel chime has begun.
+function sayNextStop(id) {
+  if (!shouldLoadVoice({ voyage, voice, started })) return;
+  const file = voiceFile(id);
+  if (file) sound.say(file, VOICE_DELAY);
+}
+
+function setVoice(on) {
+  voice = !!on;
+  try { saveVoice(localStorage, voice); } catch { /* no storage: keep going */ }
+  renderVoice();
+  if (voice) preloadVoice(); else sound.hushVoice();
+  toast(voice ? 'Station voice on' : 'Station voice off');
+}
+
 // ---------- voyage mode ----------
 
 const sceneIds = () => scenes.map((s) => s.id);
@@ -287,6 +326,7 @@ function renderVoyage() {
   btn.setAttribute('aria-pressed', String(voyage));
   btn.setAttribute('aria-label', voyage ? 'Voyage mode is on: sail to the next city after each show' : 'Voyage mode is off: stay in this city');
   btn.title = voyage ? 'Voyage mode on (V)' : 'Voyage mode (V)';
+  document.body.classList.toggle('voyage-on', voyage);   // the station voice switch is shown with it
 }
 
 function setVoyage(on) {
@@ -295,8 +335,10 @@ function setVoyage(on) {
   renderVoyage();
   if (voyage) {
     toast(`Voyage on · next stop ${getScene(nextStop(sceneIds(), scene.id)).name}`);
+    preloadVoice();
   } else {
     cancelSail();         // turning it off keeps the city we are in
+    sound.hushVoice();
     sailReady = null;
     toast('Voyage off · staying here');
   }
@@ -323,6 +365,7 @@ function arrive(next, prepared) {
   sound.setScene(scene.sound);
   life = makeLife();
   renderScene();
+  preloadVoice();       // the clip for the stop after this one, a whole show early
 }
 
 // Where the next sail goes, or null if there is none to make.
@@ -341,6 +384,7 @@ function beginSail(target) {
   $('sailStop').textContent = target.midnight ? 'New Year\u2019s Eve' : stopLabel(sceneIds(), next.id);
   $('sailTo').textContent = target.midnight ? `Midnight in ${next.name}` : sailCaption(next.name);
   sound.life('travel', { now: true });
+  if (!target.midnight) sayNextStop(next.id);   // the picture says "Sailing to ...": the voice says the same
 }
 
 function endSail() {
@@ -417,6 +461,7 @@ function setScene(id) {
   renderScene();
   if (started) launch();    // a new harbour says hello with a show
   updateClock();
+  preloadVoice();           // voyage mode goes on from here: get the next stop's clip
 }
 
 function buildMenu() {
@@ -440,6 +485,15 @@ function buildMenu() {
   soon.setAttribute('aria-disabled', 'true');
   soon.textContent = 'More places are on the way';
   menu.append(soon);
+  // The credit for the station voice. The words are in js/voice.js, and
+  // only there: empty them and this line is gone.
+  if (VOICE_CREDIT) {
+    const credit = document.createElement('li');
+    credit.className = 'credit';
+    credit.setAttribute('role', 'note');
+    credit.textContent = VOICE_CREDIT;
+    menu.append(credit);
+  }
 }
 
 function openMenu() {
@@ -706,6 +760,7 @@ function begin() {
   launch();
   wake();
   syncScreenLock();
+  preloadVoice();
 }
 
 // ---------- wiring ----------
@@ -749,6 +804,7 @@ if (link.debug) {
       + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
       + `${newYearLine()}\n`
       + `your fireworks: ${skyCount.shells} shells · ${skyCount.big} big · ${skyCount.comets} comets · ${skyCount.heldBack} held back by the limits\n`
+      + `station voice: ${voice ? 'on' : 'off'}${voice && !voyage ? ' (only heard in voyage mode)' : ''}\n`
       + `voyage: ${voyage ? (sail ? `sailing to ${sail.next.name}` : sailReady ? `on · ${getScene(sailReady.id).name} ${sailReady.prepared.ready ? 'ready' : 'being painted'}` : 'on') : 'off'}\n`
       + `life sounds: press ${LIFE_SOUNDS.map((kind, i) => `${i + 1} ${kind}`).join(' · ')}`;
   }, 500);
@@ -767,6 +823,7 @@ buildMenu();
 renderScene();
 renderMute();
 renderVoyage();
+renderVoice();
 renderFullscreen();
 updateClock();
 if (!fsRequest) $('fsBtn').hidden = true;
@@ -927,6 +984,7 @@ $('volume').step = String(VOLUME_STEP * 100);
 $('shareBtn').addEventListener('click', shareLink);
 $('snapBtn').addEventListener('click', savePostcard);
 $('voyageBtn').addEventListener('click', () => setVoyage(!voyage));
+$('voiceBtn').addEventListener('click', () => setVoice(!voice));
 $('ambientBtn').addEventListener('click', () => setAmbient(true, { hint: true }));
 $('linkDone').addEventListener('click', closeLinkBox);
 $('fsBtn').addEventListener('click', toggleFullscreen);

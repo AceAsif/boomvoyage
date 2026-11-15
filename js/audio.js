@@ -1,5 +1,7 @@
 // Sound engine. Every sound is made live with the Web Audio API:
-// oscillators and filtered noise, no audio files.
+// oscillators and filtered noise, no audio files. The one exception is the
+// station voice of voyage mode: seven short recorded clips (see "station
+// voice" below and js/voice.js).
 //
 // The engine calls these methods at the same moment it draws the matching
 // effect, so sound and picture stay together.
@@ -9,6 +11,7 @@ import { LIFE_SOUNDS, lifeSoundPlan, playLifeSound, createSoundGate } from './li
 // The quiet sounds a life event may ask for (see js/lifesound.js).
 export { LIFE_SOUNDS };
 
+import { VOICE_LEVEL, VOICE_FADE, voiceStart } from './voice.js';
 import { loadVolume, saveVolume, clampVolume, masterGain, isSilent } from './volume.js';
 
 const KEY = 'boomvoyage.muted';
@@ -410,6 +413,83 @@ export class Sound {
       osc.start(t);
       osc.stop(t + 3.8);
     });
+  }
+
+  // ---------- station voice ----------
+  // A short recorded voice that names the next stop in voyage mode. It is
+  // played with the same AudioContext as everything else (the one the first
+  // tap unlocked, so phones allow it), through the same master volume and
+  // limiter: the mute button and the volume slider reach it too.
+
+  // Fetches and decodes a clip, once. Answers a promise of the sound, or of
+  // null if it cannot be had (a missing file, no network, a format this
+  // browser cannot read). It never fails loudly: the voice just stays silent.
+  loadVoice(url) {
+    if (!this.ctx || !url) return Promise.resolve(null);
+    if (!this.voiceClips) this.voiceClips = new Map();
+    let clip = this.voiceClips.get(url);
+    if (!clip) {
+      const ctx = this.ctx;
+      clip = fetch(url)
+        .then((response) => {
+          if (!response.ok) return null;
+          return response.arrayBuffer().then((data) => new Promise((done, failed) => {
+            // Older Safari only knows the form with two callbacks.
+            const promise = ctx.decodeAudioData(data, done, failed);
+            if (promise && promise.catch) promise.catch(failed);
+          }));
+        })
+        .catch(() => null)
+        .then((buffer) => {
+          if (!buffer) this.voiceClips.delete(url);   // try again next time
+          return buffer;
+        });
+      this.voiceClips.set(url, clip);
+    }
+    return clip;
+  }
+
+  // Says a clip, `delay` seconds from now. Only one voice at a time: a clip
+  // that is still playing is faded away first. Nothing happens when the
+  // sound is muted, the volume is at zero or the tab is hidden, or if the
+  // clip only arrives when it is far too late.
+  say(url, delay = 0) {
+    if (!this.live || document.hidden) return;
+    const ctx = this.ctx;
+    this.hushVoice();
+    const token = (this.voiceToken = (this.voiceToken || 0) + 1);
+    const wanted = ctx.currentTime + delay;
+    this.loadVoice(url).then((buffer) => {
+      if (!buffer || token !== this.voiceToken || !this.live) return;
+      const at = voiceStart(wanted, ctx.currentTime);
+      if (at === null) return;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const gain = ctx.createGain();
+      gain.gain.value = VOICE_LEVEL;
+      source.connect(gain);
+      gain.connect(this.dry);
+      source.start(at);
+      const voice = (this.voiceNow = { source, gain });
+      source.onended = () => {
+        if (this.voiceNow === voice) this.voiceNow = null;
+        try { gain.disconnect(); } catch { /* already gone */ }
+      };
+    });
+  }
+
+  // Fades the voice away (about a quarter of a second) and stops it. A clip
+  // that was asked for but has not begun is called off.
+  hushVoice() {
+    this.voiceToken = (this.voiceToken || 0) + 1;
+    const voice = this.voiceNow;
+    if (!voice || !this.ctx) return;
+    this.voiceNow = null;
+    const t = this.ctx.currentTime;
+    voice.gain.gain.cancelScheduledValues(t);
+    voice.gain.gain.setValueAtTime(VOICE_LEVEL, t);
+    voice.gain.gain.linearRampToValueAtTime(0, t + VOICE_FADE);
+    try { voice.source.stop(t + VOICE_FADE + 0.05); } catch { /* not started or already stopped */ }
   }
 
   // ---------- life between shows ----------

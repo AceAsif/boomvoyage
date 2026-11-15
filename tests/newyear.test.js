@@ -3,7 +3,7 @@
 // handed in, so nothing here depends on today's date.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MIDNIGHT_GAP, MIDNIGHT_GRACE, zoneTime, zoneOffsetMinutes, localMidnight, knownZone, midnights, newYearState, newYearWindow, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown, parseClock } from '../js/newyear.js';
+import { MIDNIGHT_GAP, MIDNIGHT_GRACE, zoneTime, zoneOffsetMinutes, localMidnight, knownZone, midnights, newYearState, newYearWindow, START_DAY, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown, parseClock } from '../js/newyear.js';
 import { parseLink } from '../js/link.js';
 import { scenes } from '../js/scenes/index.js';
 import { buildShow } from '../js/show.js';
@@ -67,7 +67,7 @@ test('the midnights come in the order they really happen: Sydney, Tokyo, Hong Ko
 });
 
 test('on other dates nothing changes', () => {
-  for (const day of ['2026-11-14T12:00:00Z', '2026-12-30T12:00:00Z', '2027-01-02T12:00:00Z', '2026-06-21T00:00:00Z', '2026-12-25T18:00:00Z']) {
+  for (const day of ['2026-11-14T12:00:00Z', '2026-12-29T09:00:00Z', '2027-01-02T12:00:00Z', '2026-06-21T00:00:00Z', '2026-12-25T18:00:00Z']) {
     for (const zone of ['Europe/London', 'Australia/Sydney', 'America/New_York']) {
       assert.deepEqual(newYearState(utc(day), CITIES, zone), { active: false }, `${day} in ${zone}`);
     }
@@ -100,14 +100,16 @@ test('after each midnight the countdown moves to the next city', () => {
   assert.equal(newYearState(utc('2026-12-31T13:00:00Z') + MIDNIGHT_GRACE * 1000, CITIES, zone).next.id, 'tokyo');
 });
 
-test('the mode starts on the visitor\'s own 31 December and ends after the last city', () => {
+test('the mode starts on the visitor\'s own 30 December and ends after the last city', () => {
   // A visitor in London: the last midnight (New York) is at 05:00 on their 1 January.
   assert.equal(newYearState(utc('2026-12-31T00:00:00Z'), CITIES, 'Europe/London').active, true);
-  assert.equal(newYearState(utc('2026-12-30T23:59:59Z'), CITIES, 'Europe/London').active, false);
+  assert.equal(newYearState(utc('2026-12-30T00:00:00Z'), CITIES, 'Europe/London').active, true);
+  assert.equal(newYearState(utc('2026-12-29T23:59:59Z'), CITIES, 'Europe/London').active, false);
   assert.equal(newYearState(utc('2027-01-01T03:00:00Z'), CITIES, 'Europe/London').next.id, 'newyork');
   assert.equal(newYearState(utc('2027-01-01T05:10:00Z'), CITIES, 'Europe/London').active, false, 'all seven have had their midnight');
-  // A visitor in Sydney: their 31 December begins at 13:00 UTC on the 30th.
-  assert.equal(newYearState(utc('2026-12-30T12:59:00Z'), CITIES, 'Australia/Sydney').active, false);
+  // A visitor in Sydney: their 30 December begins at 13:00 UTC on the 29th.
+  assert.equal(newYearState(utc('2026-12-29T12:59:00Z'), CITIES, 'Australia/Sydney').active, false);
+  assert.equal(newYearState(utc('2026-12-29T13:00:00Z'), CITIES, 'Australia/Sydney').next.id, 'sydney');
   assert.equal(newYearState(utc('2026-12-30T13:00:00Z'), CITIES, 'Australia/Sydney').next.id, 'sydney');
   assert.equal(newYearState(utc('2026-12-31T14:00:00Z'), CITIES, 'Australia/Sydney').next.id, 'tokyo', 'already 1 January in Sydney, Tokyo is still waiting');
   // A visitor in New York sees Sydney's midnight at 8 in the morning on the 31st.
@@ -201,18 +203,18 @@ test("once a city has had its midnight show, the countdown moves to the next cit
 
 // ---------- when the mode is on (what the ?debug=1 panel shows) ----------
 
-test('the window starts when 31 December begins for the visitor and ends after the last midnight', () => {
+test('the window starts when 30 December begins for the visitor and ends after the last midnight', () => {
   const at = (text) => Date.parse(text);
   // London, mid November: the coming New Year's Eve.
   const london = newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'Europe/London');
   assert.equal(london.year, 2027);
-  assert.equal(london.start, at('2026-12-31T00:00:00Z'));
+  assert.equal(london.start, at('2026-12-30T00:00:00Z'));
   assert.equal(london.last.id, 'newyork', 'New York is the last of the seven cities');
   assert.equal(london.end, at('2027-01-01T05:00:00Z') + MIDNIGHT_GRACE * 1000);
-  // Sydney is 11 hours ahead: its 31 December begins at 13:00 UTC the day before.
-  assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'Australia/Sydney').start, at('2026-12-30T13:00:00Z'));
+  // Sydney is 11 hours ahead: its 30 December begins at 13:00 UTC the day before.
+  assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'Australia/Sydney').start, at('2026-12-29T13:00:00Z'));
   // Los Angeles is 8 hours behind.
-  assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'America/Los_Angeles').start, at('2026-12-31T08:00:00Z'));
+  assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'America/Los_Angeles').start, at('2026-12-30T08:00:00Z'));
   // The end does not depend on where the visitor is.
   for (const zone of ['Australia/Sydney', 'America/Los_Angeles', 'Asia/Dhaka', 'UTC']) {
     assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, zone).end, london.end);
@@ -239,5 +241,76 @@ test('the mode is on exactly inside that window, in every time zone', () => {
     assert.equal(newYearWindow(span.start + 3600e3, CITIES, zone).start, span.start);
     assert.equal(newYearWindow(span.end - 1000, CITIES, zone).start, span.start);
     assert.equal(newYearWindow(span.end + 1000, CITIES, zone).year, span.year + 1);
+  }
+});
+
+// ---------- the mode starts on 30 December ----------
+
+test('the mode turns on at 00:00 on 30 December on the visitor\'s own calendar', () => {
+  assert.equal(START_DAY, 30);
+  // [time zone, the last second of 29 December there, the first second of 30 December there]
+  const cases = [
+    ['Europe/London', '2026-12-29T23:59:59Z', '2026-12-30T00:00:00Z'],
+    ['UTC', '2026-12-29T23:59:59Z', '2026-12-30T00:00:00Z'],
+    ['Australia/Sydney', '2026-12-29T12:59:59Z', '2026-12-29T13:00:00Z'],
+    ['Asia/Dhaka', '2026-12-29T17:59:59Z', '2026-12-29T18:00:00Z'],
+    ['Asia/Tokyo', '2026-12-29T14:59:59Z', '2026-12-29T15:00:00Z'],
+    ['America/New_York', '2026-12-30T04:59:59Z', '2026-12-30T05:00:00Z'],
+    ['America/Los_Angeles', '2026-12-30T07:59:59Z', '2026-12-30T08:00:00Z'],
+  ];
+  for (const [zone, before, start] of cases) {
+    assert.deepEqual(newYearState(utc(before), CITIES, zone), { active: false }, `${zone}: on too early`);
+    const state = newYearState(utc(start), CITIES, zone);
+    assert.equal(state.active, true, `${zone}: not on at the start of 30 December`);
+    assert.equal(state.year, 2027);
+    assert.equal(state.next.id, 'sydney', 'the first countdown is to Sydney');
+    assert.equal(newYearWindow(utc(before), CITIES, zone).start, utc(start));
+  }
+});
+
+test('on 30 December the countdown to Sydney is more than a day long, and is written with days', () => {
+  // The first moment of the mode for a visitor in London: 37 hours before Sydney's midnight.
+  const now = utc('2026-12-30T00:00:00Z');
+  const state = newYearState(now, CITIES, 'Europe/London');
+  assert.equal(state.next.at - now, 37 * HOUR);
+  assert.equal(formatLongCountdown(state.next.at - now), '1d 13:00:00');
+  // The longest wait there can be: a visitor far in the east (their 30 December begins early).
+  const early = newYearWindow(utc('2026-12-20T00:00:00Z'), CITIES, 'Pacific/Kiritimati').start;
+  assert.equal(formatLongCountdown(newYearState(early, CITIES, 'Pacific/Kiritimati').next.at - early), '2d 03:00:00');
+  // 31 December is as before.
+  assert.equal(formatLongCountdown(newYearState(utc('2026-12-31T12:00:00Z'), CITIES, 'Europe/London').next.at - utc('2026-12-31T12:00:00Z')), '1:00:00');
+});
+
+test('the end has not moved: 90 seconds after midnight in New York', () => {
+  assert.equal(MIDNIGHT_GRACE, 90);
+  const end = utc('2027-01-01T05:00:00Z') + 90 * 1000;
+  for (const zone of ['Europe/London', 'Australia/Sydney', 'America/Los_Angeles']) {
+    assert.equal(newYearWindow(utc('2026-12-30T12:00:00Z'), CITIES, zone).end, end);
+    assert.equal(newYearState(end - 1000, CITIES, zone).active, true);
+    assert.equal(newYearState(end, CITIES, zone).active, false);
+  }
+});
+
+test('the countdown over 24 hours shows days, and under 24 hours is as before', () => {
+  const S = 1000, M = 60 * S, D = 24 * HOUR;
+  assert.equal(formatLongCountdown(D + 23 * HOUR + 59 * M + 59 * S), '1d 23:59:59');
+  assert.equal(formatLongCountdown(D), '1d 00:00:00');
+  assert.equal(formatLongCountdown(D + S), '1d 00:00:01');
+  assert.equal(formatLongCountdown(D + 5 * M + 7 * S), '1d 00:05:07');
+  assert.equal(formatLongCountdown(2 * D + 3 * HOUR), '2d 03:00:00');
+  assert.equal(formatLongCountdown(10 * D + 9 * HOUR + 8 * M + 7 * S), '10d 09:08:07');
+  // One second under a day: no days, the old form.
+  assert.equal(formatLongCountdown(D - S), '23:59:59');
+  assert.equal(formatLongCountdown(D - 1), '1d 00:00:00', 'a part of a second counts as a whole one, as everywhere');
+  assert.equal(formatLongCountdown(16 * HOUR), '16:00:00');
+  assert.equal(formatLongCountdown(4985000), '1:23:05');
+  assert.equal(formatLongCountdown(125000), '2:05');
+  // It never goes up as time passes, and every text is unique for each second.
+  let last = null;
+  for (let ms = D + 3 * S; ms > D - 3 * S; ms -= S) {
+    const text = formatLongCountdown(ms);
+    assert.notEqual(text, last);
+    assert.match(text, /^(\d+d \d\d:\d\d:\d\d|\d{1,2}:\d\d:\d\d)$/);
+    last = text;
   }
 });

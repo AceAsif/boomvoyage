@@ -2,7 +2,8 @@
 // is always handed in as a number (milliseconds, like Date.now()), so a
 // fake clock can be used for testing.
 //
-// On 31 December (by the visitor's own calendar) the page counts down to
+// From 30 December (by the visitor's own calendar: the day before New
+// Year's Eve, so the countdown is there in good time) the page counts down to
 // the real midnight of each city, one after another, in the order in which
 // those midnights really happen around the world. At each midnight that
 // city plays a longer, bigger show. When the last city has had its
@@ -82,6 +83,10 @@ export function midnights(cities, year) {
   return list;
 }
 
+// The mode turns on when this day of December begins on the visitor's own
+// calendar: at 00:00 on 30 December.
+export const START_DAY = 30;
+
 // What New Year's Eve mode should do at the moment `now`.
 //   { active: false }                       an ordinary day
 //   { active: true, year, stops, next }     `year` is the year being
@@ -93,7 +98,7 @@ export function newYearState(now, cities, zone = visitorZone()) {
   if (!Number.isFinite(now) || !cities || !cities.length) return { active: false };
   const here = zoneTime(zone, now);
   let year;
-  if (here.month === 12 && here.day === 31) year = here.year + 1;      // New Year's Eve here
+  if (here.month === 12 && here.day >= START_DAY) year = here.year + 1;   // 30 or 31 December here
   else if (here.month === 1 && here.day === 1) year = here.year;        // already past midnight here: other cities may still be waiting
   else return { active: false };
   const stops = midnights(cities, year);
@@ -106,7 +111,7 @@ export function newYearState(now, cities, zone = visitorZone()) {
 
 // For the ?debug=1 panel only (it decides nothing): when New Year's Eve
 // mode is on, in plain moments.
-//   start = the moment 31 December begins on the visitor's own calendar;
+//   start = the moment 30 December begins on the visitor's own calendar;
 //   end   = the last city's midnight plus MIDNIGHT_GRACE seconds.
 // newYearState() is active exactly from `start` until `end`. Before `start`
 // this gives the coming New Year's Eve; after `end`, next year's.
@@ -118,13 +123,12 @@ export function newYearWindow(now, cities, zone = visitorZone()) {
   const span = (eve) => {
     const stops = midnights(cities, eve + 1);
     if (!stops.length) return null;
-    const wall = Date.UTC(eve, 11, 31, 0, 0, 0);
+    const wall = Date.UTC(eve, 11, START_DAY, 0, 0, 0);
     let start = wall - zoneOffsetMinutes(zone, wall) * 60000;
     start = wall - zoneOffsetMinutes(zone, start) * 60000;
     const last = stops[stops.length - 1];
     return { year: eve + 1, start, end: last.at + MIDNIGHT_GRACE * 1000, zone, last: { id: last.id, name: last.name, at: last.at } };
   };
-  // On 1 January the eve that may still be going on is last year's.
   // West of the last city the eve is over while it is still 31 December:
   // then the next one is a year away.
   for (const eve of [here.year - 1, here.year]) {
@@ -170,11 +174,14 @@ export function newYearTitle(year) {
   return `Happy New Year ${year}`;
 }
 
-// 4985000 -> "1:23:05", 125000 -> "2:05", 900 -> "0:01". Hours only when needed.
+// 4985000 -> "1:23:05", 125000 -> "2:05", 900 -> "0:01". Hours only when
+// needed. From 24 hours up the days are written out, so that nobody has to
+// read "47:59:59": 172799000 -> "1d 23:59:59", 86400000 -> "1d 00:00:00".
 export function formatLongCountdown(ms) {
   const total = Math.ceil(Math.max(0, ms) / 1000);
-  const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+  const d = Math.floor(total / 86400), h = Math.floor((total % 86400) / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
   const two = (n) => String(n).padStart(2, '0');
+  if (d > 0) return `${d}d ${two(h)}:${two(m)}:${two(s)}`;
   return h > 0 ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`;
 }
 

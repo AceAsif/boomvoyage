@@ -161,10 +161,14 @@ test('a share link still carries the current city, seed and theme, and nothing e
   assert.equal(url, 'https://example.org/boomvoyage/?scene=tokyo&seed=123&theme=sakura');
 });
 
-test('the sail has its own quiet sound, built by the same rules as the life sounds', () => {
-  assert.ok(LIFE_SOUNDS.includes('sail'));
-  const plan = lifeSoundPlan('sail', () => 0.5);
+test('the way to the next city has its own quiet sound (the travel cue), built by the same rules as the life sounds', () => {
+  assert.ok(LIFE_SOUNDS.includes('travel'));
+  const plan = lifeSoundPlan('travel', () => 0.5);
   assert.ok(plan.length <= sailLength(false), 'the sound is over before the next city is fully in');
+  // The hum is at its fullest while the picture is dark, and gone when the city is in.
+  const hum = plan.voices.find((v) => v.part === 'hum' && v.source === 'tone');
+  const top = hum.env.reduce((a, b) => (b[1] > a[1] ? b : a));
+  assert.equal(sailAt(top[0], false).dark, 1, 'the hum peaks in the dark');
   for (const v of plan.voices) {
     assert.equal(v.env[0][1], 0);
     assert.equal(v.env.at(-1)[1], 0);

@@ -108,6 +108,12 @@ No personal names or addresses are put on it.
 - The picture uses every pixel the screen has, so it is sharp on high-DPI
   screens. Its longest side is at most 1920 pixels.
 - The buttons, the countdown and the captions are not in the picture.
+- On a phone held upright the picture is 4:5, not the whole tall screen:
+  the full width of the city, a thin strip of water and the sky above it,
+  with a large caption. If a show is on, the page waits a moment (3.5
+  seconds at most) and keeps the frame with the most light, so a card asked
+  for at the start of a show is not an empty sky. Desktop and sideways
+  postcards show the whole screen and are taken at once.
 
 ## Link options
 
@@ -120,7 +126,7 @@ Add these to the address of the page (after a `?`, joined with `&`).
 | `theme` | `?theme=ember-jade` | Uses that colour theme for the shared show. It is the theme name in lower case with dashes, for example `harbour-blue`. |
 | `ambient` | `?ambient=1` | Starts in ambient (TV) mode. Also works with `true`, `yes`, `on`. Use `0` for off. |
 | `voyage` | `?voyage=1` | Starts with voyage mode on (see "Voyage mode" below). `?voyage=0` starts with it off. Without it, your last choice is used. |
-| `debug` | `?debug=1` | Shows a small frame-rate meter (see "Check the speed" below). |
+| `debug` | `?debug=1` | Shows a small frame-rate meter (see "Check the speed" below). It also says "new year mode: on" or "off", and when the mode starts and ends. |
 | `clock` | `?clock=2026-12-31T12:00:00Z` | For testing New Year's Eve mode: the page pretends it is this moment. It must be a full date and time with `Z` or an offset such as `+11:00`. It changes nothing else, and anything it cannot read is ignored. |
 
 Examples:
@@ -161,7 +167,7 @@ mouse pointer is hidden. **Tap or click anywhere, or press `Esc`, to leave.**
 
 With `?debug=1` in the address, press `1` (horn), `2` (water), `3` (chime),
 `4` (bell), `5` (furin, a glass wind chime), `6` (gong) or `7` (sail, the
-sound of voyage mode) to hear a quiet sound at once, in the place you are in. A small
+sound of voyage mode: cloth flapping, a rope creak and a low swish) to hear a quiet sound at once, in the place you are in. A small
 message names the sound, or says why it did not play (muted, or two are
 already playing).
 
@@ -267,7 +273,8 @@ There are 333 tests in `tests/`:
   default, nothing is louder, clamping, the saved level, 0 acts as mute, what
   the mute button and the slider do to each other.
 - `postcard.test.js` — the postcard: caption, small line, a safe file name,
-  share or download, and a picture that is never larger than needed.
+  share or download, a picture that is never larger than needed, desktop
+  cards unchanged, the 4:5 phone card, and when the picture is taken.
 - `site.test.js` — the link preview and the install files: the Open Graph and
   Twitter tags, a full picture address that points at a real file of
   1200x630 under 300 KB, a valid manifest with relative `start_url` and

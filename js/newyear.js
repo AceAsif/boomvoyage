@@ -104,6 +104,36 @@ export function newYearState(now, cities, zone = visitorZone()) {
   return { active: true, year, stops, next };
 }
 
+// For the ?debug=1 panel only (it decides nothing): when New Year's Eve
+// mode is on, in plain moments.
+//   start = the moment 31 December begins on the visitor's own calendar;
+//   end   = the last city's midnight plus MIDNIGHT_GRACE seconds.
+// newYearState() is active exactly from `start` until `end`. Before `start`
+// this gives the coming New Year's Eve; after `end`, next year's.
+// Returns { year, start, end, zone, last } (`year` is the year welcomed,
+// `last` the last city) or null.
+export function newYearWindow(now, cities, zone = visitorZone()) {
+  if (!Number.isFinite(now) || !cities || !cities.length) return null;
+  const here = zoneTime(zone, now);
+  const span = (eve) => {
+    const stops = midnights(cities, eve + 1);
+    if (!stops.length) return null;
+    const wall = Date.UTC(eve, 11, 31, 0, 0, 0);
+    let start = wall - zoneOffsetMinutes(zone, wall) * 60000;
+    start = wall - zoneOffsetMinutes(zone, start) * 60000;
+    const last = stops[stops.length - 1];
+    return { year: eve + 1, start, end: last.at + MIDNIGHT_GRACE * 1000, zone, last: { id: last.id, name: last.name, at: last.at } };
+  };
+  // On 1 January the eve that may still be going on is last year's.
+  // West of the last city the eve is over while it is still 31 December:
+  // then the next one is a year away.
+  for (const eve of [here.year - 1, here.year]) {
+    const found = span(eve);
+    if (found && now < found.end) return found;
+  }
+  return span(here.year + 1);
+}
+
 // The stop to count down to, given the moment (`struckAt`) of the last
 // midnight whose show has already begun here. A city whose show has started
 // is done: the countdown moves on to the next one at once.

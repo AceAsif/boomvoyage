@@ -12,7 +12,7 @@ import { createFrameStats, formatStats } from './stats.js';
 import { createLife } from './life.js';
 import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
 import { drawPostcard, postcardCaption, postcardFileName, postcardRoute, postcardLayout, createMomentPicker } from './postcard.js';
-import { newYearState, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
+import { newYearState, newYearWindow, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
 import { nextStop, stopLabel, sailCaption, initialVoyage, loadVoyage, saveVoyage, shouldPrepare, shouldSail, lifeRemaining, sailAt, sailLength } from './voyage.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
 
@@ -712,6 +712,27 @@ function begin() {
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
 window.boomvoyage = { engine, sound, screenLock, makePostcard, bestMoment, skyLight, postcardView, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
 
+// ?debug=1: "new year mode: on/off", when it starts and ends (in the
+// visitor's own time and in UTC), and the test clock if one is set.
+// It only reports: nothing here changes what the mode does.
+function newYearLine() {
+  const now = Date.now() + clockOffset;
+  let text = `new year mode: ${newYear.active ? 'on' : 'off'}`;
+  try {
+    const span = newYearWindow(now, cities);
+    if (span) {
+      const local = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      const both = (ms) => `${local.format(new Date(ms))} (${new Date(ms).toISOString().slice(0, 16)}Z)`;
+      text += newYear.active
+        ? ` · welcoming ${newYear.year} · next midnight ${nextMidnight()?.name ?? 'none left'}\n  on since ${both(span.start)}`
+        : `\n  starts ${both(span.start)}`;
+      text += `\n  = when 31 Dec begins in your time zone (${span.zone})\n  ends ${both(span.end)}, after midnight in ${span.last.name}`;
+    }
+  } catch { /* no time zone data: just on/off */ }
+  if (link.clock !== null) text += `\n  test clock ${new Date(now).toISOString().slice(0, 19)}Z`;
+  return text;
+}
+
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).
 if (link.debug) {
@@ -725,7 +746,7 @@ if (link.debug) {
       + `${engine.P.count} sparks · canvas ${canvas.width}×${canvas.height} · pixel ratio ${v.dpr}\n`
       + `fireworks layer ${engine.fx.c.width}×${engine.fx.c.height} (quality step ${engine.governor.level + 1} of 3)\n`
       + `life: ${life.active.map((e) => e.id).join(', ') || '-'}\n`
-      + (link.clock !== null || newYear.active ? `new year: ${newYear.active ? `${newYear.year} · next midnight ${nextMidnight()?.name ?? 'none left'}` : 'not today'}${link.clock !== null ? ` · test clock ${new Date(Date.now() + clockOffset).toISOString().slice(0, 19)}Z` : ''}\n` : '')
+      + `${newYearLine()}\n`
       + `voyage: ${voyage ? (sail ? `sailing to ${sail.next.name}` : sailReady ? `on · ${getScene(sailReady.id).name} ${sailReady.prepared.ready ? 'ready' : 'being painted'}` : 'on') : 'off'}\n`
       + `life sounds: press ${LIFE_SOUNDS.map((kind, i) => `${i + 1} ${kind}`).join(' · ')}`;
   }, 500);

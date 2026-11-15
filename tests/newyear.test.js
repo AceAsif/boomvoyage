@@ -3,7 +3,7 @@
 // handed in, so nothing here depends on today's date.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MIDNIGHT_GAP, MIDNIGHT_GRACE, zoneTime, zoneOffsetMinutes, localMidnight, knownZone, midnights, newYearState, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown, parseClock } from '../js/newyear.js';
+import { MIDNIGHT_GAP, MIDNIGHT_GRACE, zoneTime, zoneOffsetMinutes, localMidnight, knownZone, midnights, newYearState, newYearWindow, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown, parseClock } from '../js/newyear.js';
 import { parseLink } from '../js/link.js';
 import { scenes } from '../js/scenes/index.js';
 import { buildShow } from '../js/show.js';
@@ -197,4 +197,47 @@ test("once a city has had its midnight show, the countdown moves to the next cit
   // An earlier midnight that was struck does not hide a later one.
   const evening = newYearState(utc('2026-12-31T19:00:00Z'), CITIES, zone);
   assert.equal(upcomingStop(evening, utc('2026-12-31T16:00:00Z')).id, 'dubai');
+});
+
+// ---------- when the mode is on (what the ?debug=1 panel shows) ----------
+
+test('the window starts when 31 December begins for the visitor and ends after the last midnight', () => {
+  const at = (text) => Date.parse(text);
+  // London, mid November: the coming New Year's Eve.
+  const london = newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'Europe/London');
+  assert.equal(london.year, 2027);
+  assert.equal(london.start, at('2026-12-31T00:00:00Z'));
+  assert.equal(london.last.id, 'newyork', 'New York is the last of the seven cities');
+  assert.equal(london.end, at('2027-01-01T05:00:00Z') + MIDNIGHT_GRACE * 1000);
+  // Sydney is 11 hours ahead: its 31 December begins at 13:00 UTC the day before.
+  assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'Australia/Sydney').start, at('2026-12-30T13:00:00Z'));
+  // Los Angeles is 8 hours behind.
+  assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, 'America/Los_Angeles').start, at('2026-12-31T08:00:00Z'));
+  // The end does not depend on where the visitor is.
+  for (const zone of ['Australia/Sydney', 'America/Los_Angeles', 'Asia/Dhaka', 'UTC']) {
+    assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), CITIES, zone).end, london.end);
+  }
+  assert.equal(newYearWindow(NaN, CITIES, 'UTC'), null);
+  assert.equal(newYearWindow(at('2026-11-15T10:00:00Z'), [], 'UTC'), null);
+});
+
+test('the mode is on exactly inside that window, in every time zone', () => {
+  const zones = ['Pacific/Kiritimati', 'Australia/Sydney', 'Asia/Tokyo', 'Asia/Dhaka', 'Asia/Dubai', 'Europe/Paris', 'Europe/London', 'UTC', 'America/New_York', 'America/Los_Angeles', 'Pacific/Honolulu'];
+  for (const zone of zones) {
+    const span = newYearWindow(Date.parse('2026-12-20T00:00:00Z'), CITIES, zone);
+    assert.ok(span.start < span.end);
+    // Just outside and just inside both ends.
+    assert.equal(newYearState(span.start - 1000, CITIES, zone).active, false, `${zone}: on before the start`);
+    assert.equal(newYearState(span.start, CITIES, zone).active, true, `${zone}: off at the start`);
+    assert.equal(newYearState(span.end - 1000, CITIES, zone).active, true, `${zone}: off before the end`);
+    assert.equal(newYearState(span.end, CITIES, zone).active, false, `${zone}: on after the end`);
+    // Every quarter of an hour from two days before to two days after.
+    for (let t = span.start - 48 * 3600e3; t < span.end + 48 * 3600e3; t += 900e3) {
+      assert.equal(newYearState(t, CITIES, zone).active, t >= span.start && t < span.end, `${zone} at ${new Date(t).toISOString()}`);
+    }
+    // Before it and while it is on, the window reported is this one; after it, next year's.
+    assert.equal(newYearWindow(span.start + 3600e3, CITIES, zone).start, span.start);
+    assert.equal(newYearWindow(span.end - 1000, CITIES, zone).start, span.start);
+    assert.equal(newYearWindow(span.end + 1000, CITIES, zone).year, span.year + 1);
+  }
 });

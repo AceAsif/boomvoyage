@@ -103,10 +103,11 @@ export function burst(eng, x, y, spec) {
 }
 
 // A single rising star with a thick spark tail. `angle` is measured from straight up.
-export function comet(eng, x, y, angle, speed, color, ttl = 1.5) {
+// `tail` is how many sparks a second it leaves behind (a show's comet: 70).
+export function comet(eng, x, y, angle, speed, color, ttl = 1.5, tail = 70) {
   eng.P.add(
     x, y, Math.sin(angle) * speed, -Math.cos(angle) * speed, ttl, css(color),
-    { drag: 0.42, grav: 0.55, size: 3, trail: 70 * eng.q, trailColor: css(GOLD), fade: 0.6 }
+    { drag: 0.42, grav: 0.55, size: 3, trail: tail * eng.q, trailColor: css(GOLD), fade: 0.6 }
   );
 }
 

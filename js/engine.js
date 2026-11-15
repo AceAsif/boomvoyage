@@ -7,7 +7,7 @@ import { createGovernor } from './quality.js';
 import { drawLife, drawLandWithLife } from './life.js';
 
 const NO_LIFE = [];
-import { burst, comet, mine, onDeath, css, GOLD, WHITE, BURST_TYPES } from './fireworks.js';
+import { burst, comet, mine, onDeath, css, GOLD, WHITE } from './fireworks.js';
 
 const DEFAULT_PALETTE = {
   sky: [[0, '#03040d'], [0.6, '#0a1030'], [1, '#1b1f4a']],
@@ -825,18 +825,18 @@ export class Engine {
     this.emit('launch', { x: x0, dur: T, whistle: !!whistle });
   }
 
-  // A viewer tapped the sky: send one shell to that point.
-  launchAt(x, y, colors) {
+  // A viewer tapped the sky: send one shell to that point. `spec` is the
+  // shell and `rand` the visitor's own random generator (see touch.js), so
+  // that nothing a visitor does takes numbers from anywhere else.
+  launchAt(x, y, spec, rand) {
     const v = this.view;
     const ty = Math.min(y, v.hz - v.hz * 0.18);
-    const types = BURST_TYPES.filter((t) => t !== 'salute' && t !== 'kamuro');
-    const pick = (list) => list[Math.floor(Math.random() * list.length)];
-    const spec = {
-      type: pick(types),
-      color: pick(colors),
-      color2: pick(colors),
-      size: 0.75 + Math.random() * 0.4,
-    };
-    this.launch(x + (Math.random() - 0.5) * 40, v.hz + 4, x, ty, 0.85 + ((v.hz - ty) / v.hz) * 0.6, spec, Math.random() < 0.5);
+    this.launch(x + (rand() - 0.5) * 40, v.hz + 4, x, ty, 0.85 + ((v.hz - ty) / v.hz) * 0.6, spec, rand() < 0.5);
+  }
+
+  // A comet the viewer drew (see touch.js): { x, y, angle, speed, color }.
+  // It lives a shorter time and leaves half the tail of a show's comet.
+  drawnComet(c) {
+    comet(this, c.x, c.y, c.angle, c.speed, c.color, 0.95, 34);
   }
 }

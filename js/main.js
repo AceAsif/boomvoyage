@@ -11,7 +11,7 @@ import { createScreenLock } from './wakelock.js';
 import { createFrameStats, formatStats } from './stats.js';
 import { createLife } from './life.js';
 import { slideTo, toggleSound, toPercent, VOLUME_STEP } from './volume.js';
-import { drawPostcard, postcardCaption, postcardFileName, postcardRoute } from './postcard.js';
+import { drawPostcard, postcardCaption, postcardFileName, postcardRoute, postcardLayout, createMomentPicker } from './postcard.js';
 import { newYearState, upcomingStop, showTimeNearMidnight, mayStartShow, isMidnightShow, midnightLabel, newYearTitle, formatLongCountdown } from './newyear.js';
 import { nextStop, stopLabel, sailCaption, initialVoyage, loadVoyage, saveVoyage, shouldPrepare, shouldSail, lifeRemaining, sailAt, sailLength } from './voyage.js';
 import { createSchedule, isDue, restart, remainingMs, progress, formatCountdown } from './schedule.js';
@@ -203,6 +203,7 @@ engine.onTick = (now, dt) => {
   const remaining = schedule ? remainingMs(schedule, Date.now()) / 1000 : Infinity;
   life.tick(dt, lifeRemaining(remaining, !!sailTarget(), reducedMotion), started && !current && !engine.busy);
   voyageTick(dt, remaining);
+  if (snapWatch) snapWatch();
   if (!current) { showAct(null); return; }
   const elapsed = (Date.now() - current.startedAt) / 1000;
   for (const cue of current.runner.due(elapsed)) engine.fire(cue);
@@ -505,14 +506,82 @@ async function shareLink() {
 
 // ---------- postcard ----------
 
-// A picture of the sky as it is at this moment, on a card with a caption.
-// Everything happens here, on the press of the button: the show itself
-// never does any extra work for it.
-function makePostcard() {
+// A picture of the sky on a card with a caption. Everything happens here,
+// on the press of the button: the show itself never does any extra work
+// for it.
+
+// Where the city is on the canvas, in canvas pixels (for the phone card).
+function postcardView() {
+  const v = engine.view;
+  return { horizon: v.hz * v.dpr, skylineTop: engine.litBand.h ? engine.litBand.y * v.dpr : undefined };
+}
+const postcardInfo = () => ({ id: scene.id, name: scene.name, country: scene.country, showNo: showCount, date: new Date() });
+
+function makePostcard(source = canvas, view = postcardView(), info = postcardInfo()) {
   const css = getComputedStyle(document.documentElement);
-  const info = { name: scene.name, country: scene.country, showNo: showCount, date: new Date() };
   const fonts = { display: css.getPropertyValue('--display').trim(), text: css.getPropertyValue('--text').trim() };
-  return { card: drawPostcard(canvas, info, fonts), caption: postcardCaption(info), fileName: postcardFileName({ id: scene.id, showNo: showCount }) };
+  return { card: drawPostcard(source, info, fonts, view), caption: postcardCaption(info), fileName: postcardFileName({ id: info.id, showNo: info.showNo }) };
+}
+
+// How much firework light is in the part of the sky that goes on the card:
+// 0 (black) to 255. Read from the small glow picture the engine keeps
+// anyway, shrunk to a few hundred pixels.
+let lightProbe = null;
+function skyLight(view) {
+  if (!lightProbe) {
+    const c = document.createElement('canvas');
+    c.width = 16;
+    c.height = 20;
+    lightProbe = c.getContext('2d', { willReadFrequently: true });
+  }
+  const part = postcardLayout(canvas.width, canvas.height, undefined, view).source;
+  const glow = engine.glow.c, kx = glow.width / canvas.width, ky = glow.height / canvas.height;
+  lightProbe.globalCompositeOperation = 'copy';
+  lightProbe.drawImage(glow, part.x * kx, part.y * ky, part.w * kx, part.h * ky, 0, 0, 16, 20);
+  const data = lightProbe.getImageData(0, 0, 16, 20).data;
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
+  return sum / (data.length / 4) / 3;
+}
+
+// The frame for the postcard: { source, view, info }.
+// Desktop, or a quiet sky: the canvas as it is now, as always.
+// A phone during a show: watch for up to a few seconds and keep the frame
+// with the most light (see createMomentPicker), so that a card asked for
+// at the start of a show is not an empty sky.
+let snapWatch = null;    // called every frame while a postcard is waiting
+function bestMoment() {
+  const view = postcardView();
+  const live = () => !!current || engine.busy;
+  if (!postcardLayout(canvas.width, canvas.height, undefined, view).phone || !live()) {
+    return Promise.resolve({ source: canvas, view, info: postcardInfo() });
+  }
+  toast('Waiting for the brightest moment\u2026');
+  return new Promise((done) => {
+    const picker = createMomentPicker();
+    const held = document.createElement('canvas');
+    held.width = canvas.width;
+    held.height = canvas.height;
+    const pen = held.getContext('2d');
+    const from = scene, t0 = performance.now();
+    let info = postcardInfo(), frames = 0;
+    const finish = () => { snapWatch = null; clearTimeout(guard); done({ source: held, view, info }); };
+    // If no frames are drawn (the tab went to the background), do not wait for ever.
+    const guard = setTimeout(finish, 5000);
+    const look = () => {
+      // Another city, or another window size: what we hold is the card.
+      if (scene !== from || canvas.width !== held.width || canvas.height !== held.height) { finish(); return; }
+      const answer = picker.feed((performance.now() - t0) / 1000, skyLight(view), live());
+      if (answer.keep) {
+        pen.globalCompositeOperation = 'copy';
+        pen.drawImage(canvas, 0, 0);
+        info = postcardInfo();
+      }
+      if (answer.done) finish();
+    };
+    snapWatch = () => { frames += 1; if (frames % 2 === 0) look(); };
+    look();
+  });
 }
 
 function download(blob, fileName) {
@@ -532,7 +601,8 @@ async function savePostcard() {
   snapping = true;
   $('snapBtn').disabled = true;
   try {
-    const { card, caption, fileName } = makePostcard();
+    const moment = await bestMoment();
+    const { card, caption, fileName } = makePostcard(moment.source, moment.view, moment.info);
     const blob = await new Promise((done) => card.toBlob(done, 'image/png'));
     if (!blob) throw new Error('no picture');
     // Phones: the share sheet, if it can take a picture file.
@@ -634,7 +704,7 @@ function begin() {
 // ---------- wiring ----------
 
 // Handy in the browser console, e.g. boomvoyage.engine.P.count
-window.boomvoyage = { engine, sound, screenLock, makePostcard, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
+window.boomvoyage = { engine, sound, screenLock, makePostcard, bestMoment, skyLight, postcardView, get life() { return life; }, get scene() { return scene; }, get sail() { return sail; }, get sailReady() { return sailReady; }, get schedule() { return schedule; }, get newYear() { return newYear; }, set schedule(value) { schedule = value; } };
 
 // ?debug=1: a small frame-rate meter, to compare browsers with real numbers.
 // It looks at the last 600 frames (about ten seconds).

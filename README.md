@@ -166,8 +166,8 @@ mouse pointer is hidden. **Tap or click anywhere, or press `Esc`, to leave.**
 ### Hear the life sounds
 
 With `?debug=1` in the address, press `1` (horn), `2` (water), `3` (chime),
-`4` (bell), `5` (furin, a glass wind chime), `6` (gong) or `7` (sail, the
-sound of voyage mode: cloth flapping, a rope creak and a low swish) to hear a quiet sound at once, in the place you are in. A small
+`4` (bell), `5` (furin, a glass wind chime), `6` (gong) or `7` (travel, the
+sound of voyage mode: three rising bell notes and a very quiet low city hum) to hear a quiet sound at once, in the place you are in. A small
 message names the sound, or says why it did not play (muted, or two are
 already playing).
 

@@ -339,7 +339,7 @@ function beginSail(target) {
   sailedFor = schedule ? schedule.nextAt : 0;
   $('sailStop').textContent = target.midnight ? 'New Year\u2019s Eve' : stopLabel(sceneIds(), next.id);
   $('sailTo').textContent = target.midnight ? `Midnight in ${next.name}` : sailCaption(next.name);
-  sound.life('sail', { now: true });
+  sound.life('travel', { now: true });
 }
 
 function endSail() {

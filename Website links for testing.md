@@ -223,6 +223,70 @@ https://aceasif.github.io/boomvoyage/?scene=hongkong&voyage=1&ambient=1
 
 ---
 
+## Hold-and-drag: playing in the sky
+
+Use any city link with debug, for example:
+
+https://aceasif.github.io/boomvoyage/?scene=sydney&debug=1
+
+Tap "Tap to start" first. The panel has a line that counts what you fire:
+"your fireworks: 0 shells · 0 big · 0 comets · 0 held back by the limits".
+It is easiest to test in the quiet minute between two shows.
+
+**On a desktop (mouse):**
+
+1. **Tap.** Click once on the sky. One shell goes up to that point and
+   bursts. The panel says "1 shells".
+2. **Long press.** Press the mouse button on the sky and keep it down
+   without moving. After a moment a thin gold ring grows round the cursor.
+   When it is full (about half a second) the ring opens and fades, and one
+   big shell goes up, clearly larger than a tapped one. The panel says
+   "1 big". Let go: nothing more is fired.
+3. **Drag.** Press and move the mouse across the sky, not too fast, for
+   about a second. No ring. Comets rise from the path behind the cursor,
+   left and right by turns, leaning the way you move. The panel counts
+   "comets".
+4. **A quick click shows no ring.** Click several times: no ring flashes.
+5. **Right click** on the sky does nothing and opens no menu.
+6. **The limits.** Click as fast as you can for five seconds: you get about
+   4 shells at once and then 3 a second, and "held back" goes up. Drag very
+   fast across the whole sky: the comets are spread thin (10 a second at
+   most). The frame rate in the first line of the panel stays where it was.
+7. **Buttons and keys still work:** Space, M, F, A, P, V, the city menu, the
+   camera, the link button, the volume slider.
+
+**On a phone (finger), upright and then sideways:**
+
+1. **Tap** the sky: one shell.
+2. **Long press:** hold a finger still on the sky. The ring is larger here,
+   so it shows round the fingertip. Then one big shell. The phone must not
+   open a menu, select anything or make the picture jump.
+3. **Drag** a finger across the sky, also up and down: comets follow it.
+   **The page must not scroll, bounce or zoom.**
+4. **Pinch** with two fingers on the sky: the page must not zoom. Two
+   fingers can each tap or drag.
+5. **Double tap** the sky: two shells, no zoom.
+6. **The buttons** at the bottom and the city menu still work with a tap.
+7. **In ambient mode** a tap on the sky only leaves ambient mode; it fires
+   nothing (as before).
+
+**Also check:**
+
+- **Mute:** press M (or the sound button), then tap, hold and drag. No
+  sound at all. Turn the sound on again: shells boom, comets whoosh softly.
+- **A shared show is not changed.** Open
+  https://aceasif.github.io/boomvoyage/?scene=sydney&seed=1532556838&theme=harbour-blue
+  twice. The first time only watch. The second time tap and drag a lot
+  during the show. The show's own shells come at the same moments and
+  places both times.
+- **Reduce motion** (a setting of the phone or computer): the ring does not
+  grow, it is simply there while you press; fewer comets are fired.
+- **Frame rate:** watch the first line of the debug panel during a show
+  while you drag and tap. Do it once in Chrome and once in Firefox. It
+  should be the same as without playing.
+
+---
+
 ## 6. Keys
 
 Keys work after "Tap to start".
@@ -274,6 +338,9 @@ Tick each one when it looks and sounds right.
 - [ ] **Every city on your own phone, upright and sideways.** Use the links
       in section 1. Every landmark is whole, nothing is cut off, the buttons
       do not cover each other.
+- [ ] **Playing in the sky.** Tap, long press and drag, on a desktop and on
+      a phone (see "Hold-and-drag" above). The page never scrolls or zooms
+      under your finger.
 - [ ] **Phone postcard.** On a phone held upright, tap the camera button
       about a second after a show starts. It says "Waiting for the brightest
       moment…" and then shares or saves a 4:5 picture with fireworks in it

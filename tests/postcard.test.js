@@ -248,7 +248,7 @@ test('the frame kept is always the brightest one seen so far', () => {
 
 test('a single rocket on its way up is not taken for the peak', () => {
   // Faint light that comes and goes, then a real burst late in the wait.
-  const levels = [0.3, 0.6, 0.2, 0.1, 0.5, 0.1, 0, 0.4, 0.1, 0, 0, 0.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3, 0.2, 4.1, 3, 2.5, 1.5, 1];
+  const levels = [0.2, 0.4, 0.2, 0.1, 0.3, 0.1, 0, 0.4, 0.1, 0, 0, 0.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3, 0.2, 4.1, 3, 2.5, 1.5, 1];
   const r = watch(levels);
   assert.equal(r.kept.light, 4.1);
 });
@@ -266,14 +266,14 @@ test('it never waits longer than three and a half seconds', () => {
 });
 
 test('when the show ends during the wait, the card is made at once', () => {
-  const levels = [2, 1.8, 1.5, 1.2, 1, 0.8, 0.5, 0.2, 0, 0, 0];
+  const levels = [0.5, 0.45, 0.4, 0.3, 0.25, 0.2, 0.1, 0.05, 0, 0, 0];
   const r = watch(levels, { active: (t) => t < 0.75 });
-  assert.equal(r.kept.light, 2);
+  assert.equal(r.kept.light, 0.5);
   assert.ok(Math.abs(r.stopped - 0.8) < 1e-9);
 });
 
 test('a brighter burst right after a peak is still caught', () => {
-  // The light falls only a little (not to 60%) and then a bigger burst comes.
+  // The light falls only a little (not to half) and then a bigger burst comes.
   const levels = [3, 2.8, 2.5, 2.3, 2.2, 2.1, 6.5, 6, 5, 4.2, 3.5, 2.5];
   const r = watch(levels);
   assert.equal(r.kept.light, 6.5);
@@ -285,4 +285,14 @@ test('odd light values do no harm', () => {
   assert.equal(picker.feed(0.1, -5).keep, false);
   assert.equal(picker.feed(0.2, undefined).keep, false);
   assert.equal(picker.feed(0.3, 1).keep, true);
+});
+
+test('the default numbers fit the light the page measures', () => {
+  // Measured on the page (phone size): one ordinary burst is about 0.7 to 0.9,
+  // a rocket on its way up at most 0.4. Sampled every 0.2 s.
+  const burst = [0.1, 0.1, 0.5, 0.7, 0.8, 0.7, 0.5, 0.6, 0.4, 0.5, 0.4, 0.3, 0.5, 0.6];
+  const rocket = [0, 0.2, 0.3, 0.4, 0.3, 0.2, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1];
+  assert.equal(watch(burst, { step: 0.2 }).kept.light, 0.8);
+  assert.ok(watch(burst, { step: 0.2 }).stopped >= 1.2, 'it stops only when the burst has faded to half, well after its peak');
+  assert.equal(watch(rocket, { step: 0.2 }).stopped, null, 'a rocket alone must not end the wait');
 });

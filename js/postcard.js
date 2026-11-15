@@ -117,8 +117,10 @@ function phoneLayout(srcW, srcH, maxSide, view) {
 // frame is taken at once, as before.
 // It stops when the light has clearly passed its peak (it fell to `fall` of
 // the best, `settle` seconds or more after it) or after `maxWait` seconds.
-// Light below `real` is not a peak (a single rocket on its way up).
-export function createMomentPicker({ maxWait = 3.5, settle = 0.4, fall = 0.6, real = 2.5 } = {}) {
+// Light below `real` is not a peak (a single rocket on its way up). The
+// numbers fit the page's own measure of light (skyLight in main.js), where
+// one ordinary burst gives about 0.7 to 0.9 and a finale 1 to 2.
+export function createMomentPicker({ maxWait = 3.5, settle = 0.4, fall = 0.5, real = 0.6 } = {}) {
   let t0 = null, best = -1, bestAt = 0;
   return {
     get best() { return best; },

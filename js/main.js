@@ -523,25 +523,31 @@ function makePostcard(source = canvas, view = postcardView(), info = postcardInf
   return { card: drawPostcard(source, info, fonts, view), caption: postcardCaption(info), fileName: postcardFileName({ id: info.id, showNo: info.showNo }) };
 }
 
-// How much firework light is in the part of the sky that goes on the card:
-// 0 (black) to 255. Read from the small glow picture the engine keeps
-// anyway, shrunk to a few hundred pixels.
+// How much firework light is in the part of the sky that goes on the card.
+// Read from the small glow picture the engine keeps anyway, shrunk to a few
+// thousand pixels. Each of those pixels counts only up to LIGHT_CAP, and
+// the score is lowered while the flash of a burst is still in the air
+// (engine.light.i): so a burst that has opened wide across the sky scores
+// more than the white ball at the moment it goes off.
+const LIGHT_CAP = 8;      // out of 255
+const PROBE_W = 32, PROBE_H = 40;
 let lightProbe = null;
 function skyLight(view) {
   if (!lightProbe) {
     const c = document.createElement('canvas');
-    c.width = 16;
-    c.height = 20;
+    c.width = PROBE_W;
+    c.height = PROBE_H;
     lightProbe = c.getContext('2d', { willReadFrequently: true });
+    lightProbe.imageSmoothingQuality = 'high';
   }
   const part = postcardLayout(canvas.width, canvas.height, undefined, view).source;
   const glow = engine.glow.c, kx = glow.width / canvas.width, ky = glow.height / canvas.height;
   lightProbe.globalCompositeOperation = 'copy';
-  lightProbe.drawImage(glow, part.x * kx, part.y * ky, part.w * kx, part.h * ky, 0, 0, 16, 20);
-  const data = lightProbe.getImageData(0, 0, 16, 20).data;
+  lightProbe.drawImage(glow, part.x * kx, part.y * ky, part.w * kx, part.h * ky, 0, 0, PROBE_W, PROBE_H);
+  const data = lightProbe.getImageData(0, 0, PROBE_W, PROBE_H).data;
   let sum = 0;
-  for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
-  return sum / (data.length / 4) / 3;
+  for (let i = 0; i < data.length; i += 4) sum += Math.min(LIGHT_CAP, (data[i] + data[i + 1] + data[i + 2]) / 3);
+  return (sum / (data.length / 4)) * (1 - 0.6 * Math.min(1, engine.light.i));
 }
 
 // The frame for the postcard: { source, view, info }.
